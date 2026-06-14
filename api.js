@@ -84,30 +84,31 @@ api.listen(PORT, () => {
   // =======================
   const getConnectionString = require("./utils/mongo_db").getConnectionString;
 
-  let conn;
-  try {
-    conn = getConnectionString();
-  } catch (err) {
-    console.error("❌ Mongo config error:", err.message);
-    return; // Stop if config is invalid
-  }
 
-  if (!conn) {
-    console.warn("⚠️ MongoDB not configured");
-    return;
-  }
+           (async () => {
+               let conn;
+               try {
+                     conn = getConnectionString();
+               } catch (err) {
+                     console.error("❌ Mongo config error:", err.message);
+                     return; // Stop if config is invalid
+               }
 
-  mongoose.set("strictQuery", false);
+              if (!conn) {
+                    console.warn("⚠️ MongoDB not configured");
+                    return;
+              }
 
-  mongoose
-    .connect(conn, {
-      serverSelectionTimeoutMS: 30000,
-      family: 4,
-    })
-    .then(() => {
-      console.log("✅ MongoDB connected");
-    })
-    .catch((err) => {
-      console.error("❌ MongoDB connection failed:", err.message);
-    });
-});
+              if (mongoose.connection.readyState === 0) {
+                    mongoose.set("strictQuery", false);
+                    try {
+                            await mongoose.connect(conn, {
+                                      serverSelectionTimeoutMS: 10000,
+                                      family: 4,
+                            });
+                            console.log("✅ MongoDB connected");
+                    } catch (err) {
+                            console.error("❌ MongoDB connection failed:", err.message);
+                    }
+              }
+           })();
