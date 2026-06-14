@@ -10,32 +10,32 @@ const api = express();
 // Middlewares
 // =======================
 api.use((req, res, next) => {
-  // Headers CORS allowed
-  res.setHeader("Access-Control-Allow-Origin", "*");
+    // Headers CORS allowed
+          res.setHeader("Access-Control-Allow-Origin", "*");
 
-  // Headers methods allowed
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  );
+          // Headers methods allowed
+          res.setHeader(
+                "Access-Control-Allow-Methods",
+                "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+              );
 
-  // Headers allowed
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Accept, Content-Type, Authorization",
-  );
+          // Headers allowed
+          res.setHeader(
+                "Access-Control-Allow-Headers",
+                "Origin, X-Requested-With, Accept, Content-Type, Authorization",
+              );
 
-  // Headers no-cache
-  res.setHeader(
-    "Cache-Control",
-    "no-store, no-cache, must-revalidate, proxy-revalidate",
-  );
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
-  res.setHeader("Surrogate-Control", "no-store");
+          // Headers no-cache
+          res.setHeader(
+                "Cache-Control",
+                "no-store, no-cache, must-revalidate, proxy-revalidate",
+              );
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
 
-  // Continue to routes
-  next();
+          // Continue to routes
+          next();
 });
 
 api.use(express.json());
@@ -64,11 +64,12 @@ api.use(require("./routes/log.router"));
 // Health check
 // =======================
 api.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    env: process.env.NODE_ENV || "unknown",
-    mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-  });
+    res.json({
+          status: "ok",
+          env: process.env.NODE_ENV || "unknown",
+          mongo:
+                  mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    });
 });
 
 // =======================
@@ -77,38 +78,40 @@ api.get("/health", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 api.listen(PORT, () => {
-  console.log(`🚀 API listening on port ${PORT}`);
+    console.log(`🚀 API listening on port ${PORT}`);
+});
 
-  // =======================
-  // Mongo connection (SAFE)
-  // =======================
-  const getConnectionString = require("./utils/mongo_db").getConnectionString;
+// =======================
+// Mongo connection (async IIFE for Vercel)
+// =======================
+const { getConnectionString } = require("./utils/mongo_db");
 
+(async () => {
+    if (mongoose.connection.readyState !== 0) return;
 
-           (async () => {
-               let conn;
-               try {
-                     conn = getConnectionString();
-               } catch (err) {
-                     console.error("❌ Mongo config error:", err.message);
-                     return; // Stop if config is invalid
-               }
+   let conn;
+    try {
+          conn = getConnectionString();
+    } catch (err) {
+          console.error("❌ Mongo config error:", err.message);
+          return;
+    }
 
-              if (!conn) {
-                    console.warn("⚠️ MongoDB not configured");
-                    return;
-              }
+   if (!conn) {
+         console.warn("⚠️ MongoDB not configured");
+         return;
+   }
 
-              if (mongoose.connection.readyState === 0) {
-                    mongoose.set("strictQuery", false);
-                    try {
-                            await mongoose.connect(conn, {
-                                      serverSelectionTimeoutMS: 10000,
-                                      family: 4,
-                            });
-                            console.log("✅ MongoDB connected");
-                    } catch (err) {
-                            console.error("❌ MongoDB connection failed:", err.message);
-                    }
-              }
-           })();
+   mongoose.set("strictQuery", false);
+    try {
+          await mongoose.connect(conn, {
+                  serverSelectionTimeoutMS: 10000,
+                  family: 4,
+});
+            console.log("✅ MongoDB connected");
+  } catch (err) {
+          console.error("❌ MongoDB connection failed:", err.message);
+    }
+})();
+
+module.exports = api;
