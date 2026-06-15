@@ -1,4 +1,3 @@
-// ❌ NO dotenv at cPanel
 require("dotenv").config();
 
 const express = require("express");
@@ -6,48 +5,44 @@ const mongoose = require("mongoose");
 const path = require("path");
 const api = express();
 
-// =======================
-// Middlewares
-// =======================
+const { getConnectionString } = require("./utils/mongo_db");
+
+const connectDB = async () => {
+    if (mongoose.connection.readyState === 1) return;
+    if (mongoose.connection.readyState === 2) {
+        await new Promise((resolve) => mongoose.connection.once("connected", resolve));
+        return;
+    }
+    try {
+        const conn = getConnectionString();
+        mongoose.set("strictQuery", false);
+        await mongoose.connect(conn, {
+            serverSelectionTimeoutMS: 10000,
+            family: 4,
+        });
+        console.log("MongoDB connected OK");
+    } catch (err) {
+        console.error("MongoDB connection failed:", err.message);
+    }
+};
+
 api.use((req, res, next) => {
-    // Headers CORS allowed
-          res.setHeader("Access-Control-Allow-Origin", "*");
-
-          // Headers methods allowed
-          res.setHeader(
-                "Access-Control-Allow-Methods",
-                "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-              );
-
-          // Headers allowed
-          res.setHeader(
-                "Access-Control-Allow-Headers",
-                "Origin, X-Requested-With, Accept, Content-Type, Authorization",
-              );
-
-          // Headers no-cache
-          res.setHeader(
-                "Cache-Control",
-                "no-store, no-cache, must-revalidate, proxy-revalidate",
-              );
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-    res.setHeader("Surrogate-Control", "no-store");
-
-          // Continue to routes
-          next();
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-client-version");
+    if (req.method === "OPTIONS") return res.status(200).json({});
+    next();
 });
 
-api.use(express.json());
-
-// =======================
-// Static Files
-// =======================
+api.use(express.json({ limit: "30mb" }));
+api.use(express.urlencoded({ extended: true, limit: "30mb" }));
 api.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// =======================
-// Routes
-// =======================
+api.use(async (req, res, next) => {
+    await connectDB();
+    next();
+});
+
 api.use(require("./routes/auth.router"));
 api.use(require("./routes/user.router"));
 api.use(require("./routes/file.router"));
@@ -60,58 +55,12 @@ api.use(require("./routes/bot.router"));
 api.use(require("./routes/playlist.router"));
 api.use(require("./routes/log.router"));
 
-// =======================
-// Health check
-// =======================
 api.get("/health", (req, res) => {
     res.json({
-          status: "ok",
-          env: process.env.NODE_ENV || "unknown",
-          mongo:
-                  mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+        status: "ok",
+        env: process.env.NODE_ENV || "unknown",
+        mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     });
 });
-
-// =======================
-// Start server (Passenger)
-// =======================
-const PORT = process.env.PORT || 3000;
-
-api.listen(PORT, () => {
-    console.log(`🚀 API listening on port ${PORT}`);
-});
-
-// =======================
-// Mongo connection (async IIFE for Vercel)
-// =======================
-const { getConnectionString } = require("./utils/mongo_db");
-
-(async () => {
-    if (mongoose.connection.readyState !== 0) return;
-
-   let conn;
-    try {
-          conn = getConnectionString();
-    } catch (err) {
-          console.error("❌ Mongo config error:", err.message);
-          return;
-    }
-
-   if (!conn) {
-         console.warn("⚠️ MongoDB not configured");
-         return;
-   }
-
-   mongoose.set("strictQuery", false);
-    try {
-          await mongoose.connect(conn, {
-                  serverSelectionTimeoutMS: 10000,
-                  family: 4,
-});
-            console.log("✅ MongoDB connected");
-  } catch (err) {
-          console.error("❌ MongoDB connection failed:", err.message);
-    }
-})();
 
 module.exports = api;
