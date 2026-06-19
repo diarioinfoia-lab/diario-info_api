@@ -29,9 +29,9 @@ const addInteractionStats = async (articles, userId = null) => {
   // Get user-specific interactions if userId is provided
   const userInteractions = isIdValid
     ? await Interaction.find({
-        user: userIdStr,
-        article: { $in: articleIds },
-      })
+      user: userIdStr,
+      article: { $in: articleIds },
+    })
     : [];
 
   const results = articleList.map((article) => {
@@ -247,7 +247,7 @@ exports.getPublicArticles = async (req, res) => {
     const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     condition.$or = [
       { title: { $regex: escapedTitle, $options: "i" } },
-      { description: { $regex: escapedTitle, $options: "i" } }
+      { description: { $regex: escapedTitle, $options: "i" } },
     ];
   }
 
@@ -256,6 +256,17 @@ exports.getPublicArticles = async (req, res) => {
       $regex: `^${destination.trim()}$`,
       $options: "i",
     };
+  } else {
+    condition.$and = (condition.$and || []).concat([
+      {
+        $or: [
+          { destination: { $exists: false } },
+          { destination: null },
+          { destination: "" },
+          { destination: { $regex: "^general$", $options: "i" } },
+        ],
+      },
+    ]);
   }
 
   try {
