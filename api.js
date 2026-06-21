@@ -5,6 +5,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 
 const api = express();
+let lastMongoError = null;
 
 // CORS headers
 api.use((req, res, next) => {
@@ -23,7 +24,6 @@ api.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // MongoDB connection with correct username mapping
 const connectDB = async () => {
-    // Fix: map incorrect env var value to correct Atlas username
     const envUser = process.env.MONGO_CONNECTION_USER;
     const user = (envUser === "diarioinfoio_db_user") ? "diarioinfoia_db_user" : (envUser || "diarioinfoia_db_user");
     const pass = process.env.MONGO_CONNECTION_PASSWORD;
@@ -40,18 +40,25 @@ const connectDB = async () => {
         await mongoose.connect(conn, {
             serverSelectionTimeoutMS: 10000,
         });
+        lastMongoError = null;
         console.log("MongoDB connected OK. User:", user);
     } catch (err) {
+        lastMongoError = err.message;
         console.error("MongoDB connection failed:", err.message);
     }
 };
 
 api.get("/health", async (req, res) => {
     await connectDB();
+    const envUser = process.env.MONGO_CONNECTION_USER;
     res.json({
         status: "ok",
         env: process.env.NODE_ENV || "unknown",
         mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+        mongoError: lastMongoError,
+        envUserSet: !!envUser,
+        envPassSet: !!process.env.MONGO_CONNECTION_PASSWORD,
+        envClusterSet: !!process.env.MONGO_CONNECTION_CLUSTER,
     });
 });
 
