@@ -1,46 +1,53 @@
 require("dotenv").config();
 
 const express = require("express");
+const cors = require("cors");
 const mongoose = require("mongoose");
-const path = require("path");
+
 const api = express();
 
-const { getConnectionString } = require("./utils/mongo_db");
+api.use(cors());
+api.use(express.json({ limit: "50mb" }));
+api.use(express.urlencoded({ extended: true }));
 
+// MongoDB connection with correct user mapping
 const connectDB = async () => {
-    if (mongoose.connection.readyState === 1) return;
-    if (mongoose.connection.readyState === 2) {
-        await new Promise((resolve) => mongoose.connection.once("connected", resolve));
-        return;
-    }
-    try {
-        const conn = getConnectionString();
-        mongoose.set("strictQuery", false);
-        await mongoose.connect(conn, {
-            serverSelectionTimeoutMS: 10000,
-            family: 4,
-        });
-        console.log("MongoDB connected OK");
-    } catch (err) {
-        console.error("MongoDB connection failed:", err.message);
-    }
+  const envUser = process.env.MONGO_CONNECTION_USER;
+  // Fix: map incorrect env var value to correct Atlas username
+  const user = (envUser === "diarioinfoio_db_user") ? "diarioinfoia_db_user" : (envUser || "diarioinfoia_db_user");
+  const pass = process.env.MONGO_CONNECTION_PASSWORD;
+  const cluster = process.env.MONGO_CONNECTION_CLUSTER || "cluster0.c621o4c.mongodb.net";
+  const db = process.env.MONGO_CONNECTION_DB || "diarioinfo-db";
+  const appName = process.env.MONGO_CONNECTION_APP_NAME || "Cluster0";
+
+  if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
+    return;
+  }
+
+  try {
+    const conn = "mongodb+srv://" + user + ":" + pass + "@" + cluster + "/" + db + "?retryWrites=true&w=majority&appName=" + appName;
+    mongoose.set("strictQuery", false);
+    await mongoose.connect(conn, {
+      serverSelectionTimeoutMS: 10000,
+    });
+    console.log("MongoDB connected OK. User:", user);
+  } catch (err) {
+    console.error("MongoDB connection failed:", err.message);
+  }
 };
 
-api.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-client-version");
-    if (req.method === "OPTIONS") return res.status(200).json({});
-    next();
+api.get("/health", async (req, res) => {
+  await connectDB();
+  res.json({
+    status: "ok",
+    env: process.env.NODE_ENV || "unknown",
+    mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+  });
 });
 
-api.use(express.json({ limit: "30mb" }));
-api.use(express.urlencoded({ extended: true, limit: "30mb" }));
-api.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
 api.use(async (req, res, next) => {
-    await connectDB();
-    next();
+  await connectDB();
+  next();
 });
 
 api.use(require("./routes/auth.router"));
@@ -54,13 +61,5 @@ api.use(require("./routes/importer.router"));
 api.use(require("./routes/bot.router"));
 api.use(require("./routes/playlist.router"));
 api.use(require("./routes/log.router"));
-
-api.get("/health", (req, res) => {
-    res.json({
-        status: "ok",
-        env: process.env.NODE_ENV || "unknown",
-        mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-    });
-});
 
 module.exports = api;
