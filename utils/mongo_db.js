@@ -1,26 +1,21 @@
-const MONGO_CONNECTION_USER = process.env.MONGO_CONNECTION_USER;
-const MONGO_CONNECTION_PASSWORD = process.env.MONGO_CONNECTION_PASSWORD;
-const MONGO_CONNECTION_CLUSTER = process.env.MONGO_CONNECTION_CLUSTER;
-const MONGO_CONNECTION_DB = process.env.MONGO_CONNECTION_DB;
-const MONGO_CONNECTION_APP_NAME =
-  process.env.MONGO_CONNECTION_APP_NAME || "Cluster0";
+const mongoose = require("mongoose");
 
-if (
-  !MONGO_CONNECTION_USER ||
-  !MONGO_CONNECTION_PASSWORD ||
-  !MONGO_CONNECTION_CLUSTER ||
-  !MONGO_CONNECTION_DB
-) {
-  throw new Error("❌ Missing MongoDB environment variables");
-}
+const connectMongoDB = async () => {
+  const MONGO_USER = process.env.MONGO_CONNECTION_USER;
+  const MONGO_PASS = process.env.MONGO_CONNECTION_PASSWORD;
+  const MONGO_CLUSTER = process.env.MONGO_CONNECTION_CLUSTER || "cluster0.c621o4c.mongodb.net";
+  const MONGO_DB = process.env.MONGO_CONNECTION_DB || "diarioinfo-db";
+  const MONGO_APP = process.env.MONGO_CONNECTION_APP_NAME || "Cluster0";
 
-const MONGO_CONNECTION_URI =
-  `mongodb+srv://${MONGO_CONNECTION_USER}:` +
-  `${encodeURIComponent(MONGO_CONNECTION_PASSWORD)}@` +
-  `${MONGO_CONNECTION_CLUSTER}/` +
-  `${MONGO_CONNECTION_DB}` +
-  `?appName=${MONGO_CONNECTION_APP_NAME}&retryWrites=true&w=majority`;
+  const uri = "mongodb+srv://" + MONGO_USER + ":" + MONGO_PASS + "@" + MONGO_CLUSTER + "/" + MONGO_DB + "?retryWrites=true&w=majority&appName=" + MONGO_APP;
 
-const getConnectionString = () => MONGO_CONNECTION_URI;
+  try {
+    await mongoose.connect(uri);
+    console.log("MongoDB connected successfully");
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+    throw error;
+  }
+};
 
-module.exports = { getConnectionString };
+module.exports = connectMongoDB;
