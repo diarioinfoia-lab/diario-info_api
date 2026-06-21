@@ -1,7 +1,8 @@
 const mongoose = require("mongoose");
 
 const connectMongoDB = async () => {
-  const MONGO_USER = process.env.MONGO_CONNECTION_USER;
+  // Atlas user: diarioinfoia_db_user
+  const MONGO_USER = process.env.MONGO_CONNECTION_USER || "diarioinfoia_db_user";
   const MONGO_PASS = process.env.MONGO_CONNECTION_PASSWORD;
   const MONGO_CLUSTER = process.env.MONGO_CONNECTION_CLUSTER || "cluster0.c621o4c.mongodb.net";
   const MONGO_DB = process.env.MONGO_CONNECTION_DB || "diarioinfo-db";
