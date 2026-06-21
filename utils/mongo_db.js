@@ -1,8 +1,9 @@
 const mongoose = require("mongoose");
 
 const connectMongoDB = async () => {
-  // Atlas user: diarioinfoia_db_user
-  const MONGO_USER = process.env.MONGO_CONNECTION_USER || "diarioinfoia_db_user";
+  // Fix: map wrong env var value to correct Atlas user
+  const envUser = process.env.MONGO_CONNECTION_USER;
+  const MONGO_USER = (envUser === "diarioinfoio_db_user") ? "diarioinfoia_db_user" : (envUser || "diarioinfoia_db_user");
   const MONGO_PASS = process.env.MONGO_CONNECTION_PASSWORD;
   const MONGO_CLUSTER = process.env.MONGO_CONNECTION_CLUSTER || "cluster0.c621o4c.mongodb.net";
   const MONGO_DB = process.env.MONGO_CONNECTION_DB || "diarioinfo-db";
@@ -12,7 +13,7 @@ const connectMongoDB = async () => {
 
   try {
     await mongoose.connect(uri);
-    console.log("MongoDB connected successfully");
+    console.log("MongoDB connected. User:", MONGO_USER);
   } catch (error) {
     console.error("MongoDB connection error:", error);
     throw error;
