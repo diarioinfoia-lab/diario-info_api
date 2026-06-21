@@ -22,18 +22,18 @@ api.use(express.json({ limit: "30mb" }));
 api.use(express.urlencoded({ extended: true, limit: "30mb" }));
 api.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// MongoDB connection with correct username mapping
+// MongoDB connection - tries ia cluster first, falls back to api2 cluster
 const connectDB = async () => {
-    const envUser = process.env.MONGO_CONNECTION_USER;
-    const user = (envUser === "diarioinfoio_db_user") ? "diarioinfoia_db_user" : (envUser || "diarioinfoia_db_user");
-    const pass = process.env.MONGO_CONNECTION_PASSWORD;
-    const cluster = process.env.MONGO_CONNECTION_CLUSTER || "cluster0.c621o4c.mongodb.net";
-    const db = process.env.MONGO_CONNECTION_DB || "diarioinfo-db";
-    const appName = process.env.MONGO_CONNECTION_APP_NAME || "Cluster0";
-
     if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
         return;
     }
+    // Use env vars if provided, otherwise use api2 cluster defaults
+    const user = process.env.MONGO_CONNECTION_USER || "diarioinfoia_db_user";
+    const pass = process.env.MONGO_CONNECTION_PASSWORD;
+    const cluster = process.env.MONGO_CONNECTION_CLUSTER || "cluster0.wypjl60.mongodb.net";
+    const db = process.env.MONGO_CONNECTION_DB || "diario-info-db";
+    const appName = process.env.MONGO_CONNECTION_APP_NAME || "Cluster0";
+
     try {
         const conn = "mongodb+srv://" + user + ":" + pass + "@" + cluster + "/" + db + "?retryWrites=true&w=majority&appName=" + appName;
         mongoose.set("strictQuery", false);
@@ -41,7 +41,7 @@ const connectDB = async () => {
             serverSelectionTimeoutMS: 10000,
         });
         lastMongoError = null;
-        console.log("MongoDB connected OK. User:", user);
+        console.log("MongoDB connected. Cluster:", cluster, "DB:", db);
     } catch (err) {
         lastMongoError = err.message;
         console.error("MongoDB connection failed:", err.message);
@@ -50,15 +50,13 @@ const connectDB = async () => {
 
 api.get("/health", async (req, res) => {
     await connectDB();
-    const envUser = process.env.MONGO_CONNECTION_USER;
     res.json({
         status: "ok",
         env: process.env.NODE_ENV || "unknown",
         mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
         mongoError: lastMongoError,
-        envUserSet: !!envUser,
-        envPassSet: !!process.env.MONGO_CONNECTION_PASSWORD,
-        envClusterSet: !!process.env.MONGO_CONNECTION_CLUSTER,
+        cluster: process.env.MONGO_CONNECTION_CLUSTER || "cluster0.wypjl60.mongodb.net",
+        db: process.env.MONGO_CONNECTION_DB || "diario-info-db",
     });
 });
 
