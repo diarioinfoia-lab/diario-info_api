@@ -192,7 +192,7 @@ Contenido: {articulo['cuerpo'][:2000]}
 INSTRUCCIONES:
 - Estilo periodistico profesional, claro y atractivo
 - Sin emojis ni simbolos especiales
-- En espaÃ±ol rioplatense formal
+- En espaÃÂ±ol rioplatense formal
 
 DEVUELVE SOLO UN JSON valido con esta estructura exacta:
 {{
@@ -296,7 +296,7 @@ def main():
     """Funcion principal del agregador."""
     logger.info("=" * 60)
     logger.info("Iniciando agregador de noticias DiarioInfo")
-    logger.info(f"Hora: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}")
+    logger.info(f"Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 60)
     
     # Cargar URLs ya procesadas
