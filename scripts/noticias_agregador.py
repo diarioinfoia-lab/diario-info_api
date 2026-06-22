@@ -174,6 +174,16 @@ def scrape_articulo(url, fuente):
         
         cuerpo = " ".join(parrafos[:8])
         
+        # Si no hay titulo, intentar el tag h1 genérico
+        if not titulo:
+            h1 = soup.find("h1")
+            if h1:
+                titulo = h1.get_text(strip=True)
+        # Si no hay cuerpo con párrafos grandes, tomar todos los párrafos del artículo
+        if not cuerpo:
+            all_p = soup.find_all("p")
+            parrafos_alt = [p.get_text(strip=True) for p in all_p if len(p.get_text(strip=True)) > 30]
+            cuerpo = " ".join(parrafos_alt[:10])
         if not titulo or not cuerpo:
             logger.warning(f"Articulo incompleto en {url}")
             return None
@@ -197,7 +207,7 @@ Contenido: {articulo['cuerpo'][:2000]}
 INSTRUCCIONES:
 - Estilo periodistico profesional, claro y atractivo
 - Sin emojis ni simbolos especiales
-- En espaÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±ol rioplatense formal
+- En espaÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±ol rioplatense formal
 
 DEVUELVE SOLO UN JSON valido con esta estructura exacta:
 {{
