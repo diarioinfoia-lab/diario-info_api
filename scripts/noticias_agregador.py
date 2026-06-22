@@ -13,16 +13,21 @@ import time
 import logging
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+try:
+    from pymongo import MongoClient
+    PYMONGO_OK = True
+except ImportError:
+    PYMONGO_OK = False
 
 # ============================================================
 # CONFIGURACION
 # ============================================================
 
-# API DiarioInfo ia2
-CMS_API_URL = "https://api2.diarioinfo.com"
-CMS_EMAIL = "admin@diarioinfo.com"
-CMS_PASSWORD = "Admin1234!"
+# MongoDB directo (bypass API REST)
+MONGO_URI = "mongodb+srv://diarioinfoio_db_user:lYcxG4pf5oCOgYnq@cluster0.wypjl60.mongodb.net/diario-info-db?retryWrites=true&w=majority"
+MONGO_DB = "diario-info-db"
+MONGO_COLLECTION = "articles"
 
 # Gemini API
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "PLACEHOLDER_API_KEY")
@@ -192,7 +197,7 @@ Contenido: {articulo['cuerpo'][:2000]}
 INSTRUCCIONES:
 - Estilo periodistico profesional, claro y atractivo
 - Sin emojis ni simbolos especiales
-- En espaÃÂ±ol rioplatense formal
+- En espaÃÂÃÂ±ol rioplatense formal
 
 DEVUELVE SOLO UN JSON valido con esta estructura exacta:
 {{
@@ -228,67 +233,53 @@ DEVUELVE SOLO UN JSON valido con esta estructura exacta:
         return None
 
 
-def login_cms():
-    """Obtiene el token de autenticacion del CMS."""
+def conectar_mongo():
+    """Conecta a MongoDB y retorna la coleccion de articulos."""
+    if not PYMONGO_OK:
+        logger.error("pymongo no instalado. Ejecutar: pip install pymongo")
+        return None
     try:
-        resp = requests.post(
-            f"{CMS_API_URL}/auth/signin",
-            json={"email": CMS_EMAIL, "password": CMS_PASSWORD},
-            timeout=10
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        token = data.get("token") or data.get("data", {}).get("token")
-        if token:
-            logger.info("Login CMS exitoso")
-            return token
-        else:
-            logger.error(f"Login CMS sin token: {data}")
-            return None
+        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+        client.server_info()
+        db = client[MONGO_DB]
+        col = db[MONGO_COLLECTION]
+        logger.info("Conexion MongoDB exitosa")
+        return col
     except Exception as e:
-        logger.error(f"Error login CMS: {e}")
+        logger.error(f"Error conectando MongoDB: {e}")
         return None
 
 
-def publicar_articulo(nota_reescrita, categoria_id, token, url_original):
-    """Publica un articulo en el CMS de DiarioInfo."""
+def publicar_articulo(nota_reescrita, categoria_id, col, url_original):
+    """Inserta un articulo directamente en MongoDB."""
     try:
-        fecha_ahora = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        fecha_ahora = datetime.now(timezone.utc)
         slug = hashlib.md5(nota_reescrita['titulo'].encode()).hexdigest()[:12]
-        
-        # Formatear el cuerpo como HTML simple
+        if col.find_one({"slug": slug}):
+            logger.info(f"Articulo ya existe (slug): {slug}")
+            return True
         parrafos = nota_reescrita["cuerpo"].split("\n\n")
         cuerpo_html = "".join(f"<p>{p.strip()}</p>" for p in parrafos if p.strip())
-        
-        payload = {
+        doc = {
             "title": nota_reescrita['titulo'],
             "description": nota_reescrita["copete"],
             "content": cuerpo_html,
             "category": categoria_id,
             "status": "published",
             "publishedAt": fecha_ahora,
+            "createdAt": fecha_ahora,
+            "updatedAt": fecha_ahora,
             "author": "Redaccion DiarioInfo",
             "slug": slug,
-            "tags": ["agregador", "automatico"]
+            "tags": ["agregador", "automatico"],
+            "sourceUrl": url_original,
+            "__v": 0
         }
-        
-        resp = requests.post(
-            f"{CMS_API_URL}/articles",
-            json=payload,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=15
-        )
-        
-        if resp.status_code in (200, 201):
-            data = resp.json()
-            art_id = data.get("data", {}).get("_id") or data.get("_id", "unknown")
-            logger.info(f"Articulo publicado: {nota_reescrita['titulo']} (ID: {art_id})")
-            return True
-        else:
-            logger.error(f"Error publicando ({resp.status_code}): {resp.text[:300]}")
-            return False
+        result = col.insert_one(doc)
+        logger.info(f"Articulo insertado: {nota_reescrita['titulo']} (ID: {result.inserted_id})")
+        return True
     except Exception as e:
-        logger.error(f"Error publicando articulo: {e}")
+        logger.error(f"Error insertando articulo MongoDB: {e}")
         return False
 
 
@@ -303,10 +294,10 @@ def main():
     urls_procesadas = cargar_urls_procesadas()
     logger.info(f"URLs procesadas previamente: {len(urls_procesadas)}")
     
-    # Login al CMS
-    token = login_cms()
-    if not token:
-        logger.error("No se pudo obtener token. Abortando.")
+    # Conectar a MongoDB
+    col = conectar_mongo()
+    if col is None:
+        logger.error("No se pudo conectar a MongoDB. Abortando.")
         return
     
     total_publicados = 0
@@ -345,7 +336,7 @@ def main():
             
             # Publicar en CMS
             categoria_id = CATEGORIAS[fuente['categoria']]
-            if publicar_articulo(nota_reescrita, categoria_id, token, url):
+            if publicar_articulo(nota_reescrita, categoria_id, col, url):
                 guardar_url_procesada(url, urls_procesadas)
                 publicados_fuente += 1
                 total_publicados += 1
