@@ -121,23 +121,23 @@ def guardar_url_procesada(url, urls_procesadas):
 def scrape_lista_articulos(fuente):
     """Obtiene la lista de URLs de articulos de una fuente."""
     try:
-        resp = requests.get(fuente["url"], headers=HEADERS, timeout=15)
+        resp = requests.get(fuente['url'], headers=HEADERS, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         links = []
-        for selector in fuente["selector_lista"].split(","):
+        for selector in fuente['selector_lista'].split(","):
             selector = selector.strip()
             for el in soup.select(selector):
                 href = el.get("href", "")
                 if href and len(href) > 5:
                     if not href.startswith("http"):
-                        href = fuente["base_url"] + href
+                        href = fuente['base_url'] + href
                     if href not in links:
                         links.append(href)
-        logger.info(f"[{fuente["nombre"]}] {len(links)} links encontrados")
-        return links[:fuente["max_articulos"] * 3]  # Tomar extra por si algunos fallan
+        logger.info(f"[{fuente['nombre']}] {len(links)} links encontrados")
+        return links[:fuente['max_articulos'] * 3]  # Tomar extra por si algunos fallan
     except Exception as e:
-        logger.error(f"Error scrapeando lista {fuente["nombre"]}: {e}")
+        logger.error(f"Error scrapeando lista {fuente['nombre']}: {e}")
         return []
 
 
@@ -150,7 +150,7 @@ def scrape_articulo(url, fuente):
         
         # Titulo
         titulo = ""
-        for sel in fuente["selector_titulo"].split(","):
+        for sel in fuente['selector_titulo'].split(","):
             el = soup.select_one(sel.strip())
             if el:
                 titulo = el.get_text(strip=True)
@@ -158,7 +158,7 @@ def scrape_articulo(url, fuente):
         
         # Cuerpo
         parrafos = []
-        for sel in fuente["selector_cuerpo"].split(","):
+        for sel in fuente['selector_cuerpo'].split(","):
             elements = soup.select(sel.strip())
             for el in elements:
                 text = el.get_text(strip=True)
@@ -186,13 +186,13 @@ Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.
 Reescribe la siguiente nota en formato periodistico institucional.
 
 NOTA ORIGINAL:
-Titulo: {articulo["titulo"]}
-Contenido: {articulo["cuerpo"][:2000]}
+Titulo: {articulo['titulo']}
+Contenido: {articulo['cuerpo'][:2000]}
 
 INSTRUCCIONES:
 - Estilo periodistico profesional, claro y atractivo
 - Sin emojis ni simbolos especiales
-- En español rioplatense formal
+- En espaÃ±ol rioplatense formal
 
 DEVUELVE SOLO UN JSON valido con esta estructura exacta:
 {{
@@ -214,7 +214,7 @@ DEVUELVE SOLO UN JSON valido con esta estructura exacta:
         )
         resp.raise_for_status()
         data = resp.json()
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        text = data['candidates'][0]["content"]["parts"][0]["text"]
         # Limpiar markdown si viene con ```json
         text = text.strip()
         if text.startswith("```"):
@@ -254,14 +254,14 @@ def publicar_articulo(nota_reescrita, categoria_id, token, url_original):
     """Publica un articulo en el CMS de DiarioInfo."""
     try:
         fecha_ahora = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        slug = hashlib.md5(nota_reescrita["titulo"].encode()).hexdigest()[:12]
+        slug = hashlib.md5(nota_reescrita['titulo'].encode()).hexdigest()[:12]
         
         # Formatear el cuerpo como HTML simple
         parrafos = nota_reescrita["cuerpo"].split("\n\n")
         cuerpo_html = "".join(f"<p>{p.strip()}</p>" for p in parrafos if p.strip())
         
         payload = {
-            "title": nota_reescrita["titulo"],
+            "title": nota_reescrita['titulo'],
             "description": nota_reescrita["copete"],
             "content": cuerpo_html,
             "category": categoria_id,
@@ -282,7 +282,7 @@ def publicar_articulo(nota_reescrita, categoria_id, token, url_original):
         if resp.status_code in (200, 201):
             data = resp.json()
             art_id = data.get("data", {}).get("_id") or data.get("_id", "unknown")
-            logger.info(f"Articulo publicado: {nota_reescrita["titulo"]} (ID: {art_id})")
+            logger.info(f"Articulo publicado: {nota_reescrita['titulo']} (ID: {art_id})")
             return True
         else:
             logger.error(f"Error publicando ({resp.status_code}): {resp.text[:300]}")
@@ -313,7 +313,7 @@ def main():
     
     # Procesar cada fuente
     for fuente in FUENTES:
-        logger.info(f"\nProcesando fuente: {fuente["nombre"]}")
+        logger.info(f"\nProcesando fuente: {fuente['nombre']}")
         
         # Obtener lista de articulos
         urls = scrape_lista_articulos(fuente)
@@ -328,7 +328,7 @@ def main():
                 logger.debug(f"Ya procesada: {url}")
                 continue
             
-            if publicados_fuente >= fuente["max_articulos"]:
+            if publicados_fuente >= fuente['max_articulos']:
                 break
             
             logger.info(f"Procesando: {url}")
@@ -339,12 +339,12 @@ def main():
                 continue
             
             # Reescritura con Gemini
-            nota_reescrita = reescribir_con_gemini(articulo, fuente["categoria"])
+            nota_reescrita = reescribir_con_gemini(articulo, fuente['categoria'])
             if not nota_reescrita:
                 continue
             
             # Publicar en CMS
-            categoria_id = CATEGORIAS[fuente["categoria"]]
+            categoria_id = CATEGORIAS[fuente['categoria']]
             if publicar_articulo(nota_reescrita, categoria_id, token, url):
                 guardar_url_procesada(url, urls_procesadas)
                 publicados_fuente += 1
@@ -353,7 +353,7 @@ def main():
             # Pausa entre articulos para no sobrecargar
             time.sleep(2)
         
-        logger.info(f"[{fuente["nombre"]}] {publicados_fuente} articulos publicados")
+        logger.info(f"[{fuente['nombre']}] {publicados_fuente} articulos publicados")
     
     logger.info(f"\nTOTAL publicados esta ejecucion: {total_publicados}")
     logger.info("Agregador finalizado")
