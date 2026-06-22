@@ -48,9 +48,9 @@ FUENTES = [
     {
         "nombre": "El Liberal - Policiales",
         "url": "https://www.elliberal.com.ar/?is=121",
-        "selector_lista": "h3.portada-split-izq-3l__title a, h2.portada-split-izq-2l__title a",
+        "selector_lista": "a[href*='/nota/']",
         "selector_titulo": "h1.nota-titulo, h1",
-        "selector_cuerpo": ".nota-texto-cuerpo p, article p",
+        "selector_cuerpo": ".nota-texto-cuerpo p, article p, .nota-body p, .contenido-nota p",
         "base_url": "https://www.elliberal.com.ar",
         "categoria": "policiales",
         "max_articulos": 3
@@ -58,9 +58,9 @@ FUENTES = [
     {
         "nombre": "Diario Panorama - Policiales",
         "url": "https://www.diariopanorama.com/secciones/14/policiales",
-        "selector_lista": "h2 a, h3 a, .news-title a",
+        "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
         "selector_titulo": "h1, .article-title",
-        "selector_cuerpo": "article p, .article-body p, .entry-content p",
+        "selector_cuerpo": "article p, .article-body p, .entry-content p, .nota p, .cuerpo p, .content p",
         "base_url": "https://www.diariopanorama.com",
         "categoria": "policiales",
         "max_articulos": 3
@@ -174,12 +174,12 @@ def scrape_articulo(url, fuente):
         
         cuerpo = " ".join(parrafos[:8])
         
-        # Si no hay titulo, intentar el tag h1 genérico
+        # Si no hay titulo, intentar el tag h1 genÃ©rico
         if not titulo:
             h1 = soup.find("h1")
             if h1:
                 titulo = h1.get_text(strip=True)
-        # Si no hay cuerpo con párrafos grandes, tomar todos los párrafos del artículo
+        # Si no hay cuerpo con pÃ¡rrafos grandes, tomar todos los pÃ¡rrafos del artÃ­culo
         if not cuerpo:
             all_p = soup.find_all("p")
             parrafos_alt = [p.get_text(strip=True) for p in all_p if len(p.get_text(strip=True)) > 30]
@@ -207,7 +207,7 @@ Contenido: {articulo['cuerpo'][:2000]}
 INSTRUCCIONES:
 - Estilo periodistico profesional, claro y atractivo
 - Sin emojis ni simbolos especiales
-- En espaÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±ol rioplatense formal
+- En espaÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±ol rioplatense formal
 
 DEVUELVE SOLO UN JSON valido con esta estructura exacta:
 {{
