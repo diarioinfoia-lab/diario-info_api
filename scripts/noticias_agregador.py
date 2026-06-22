@@ -25,8 +25,8 @@ except ImportError:
 # ============================================================
 
 # MongoDB directo (bypass API REST)
-MONGO_URI = "mongodb+srv://diarioinfoio_db_user:lYcxG4pf5oCOgYnq@cluster0.wypjl60.mongodb.net/diario-info-db?retryWrites=true&w=majority"
-MONGO_DB = "diario-info-db"
+MONGO_URI = "mongodb+srv://diarioinfoio_db_user:lYcxG4pf5oCOgYnq@cluster0.c621o4c.mongodb.net/?retryWrites=true&w=majority"
+MONGO_DB = "diarioinfo-db"
 MONGO_COLLECTION = "articles"
 
 # Gemini API
@@ -197,7 +197,7 @@ Contenido: {articulo['cuerpo'][:2000]}
 INSTRUCCIONES:
 - Estilo periodistico profesional, claro y atractivo
 - Sin emojis ni simbolos especiales
-- En espaÃÂÃÂÃÂÃÂ±ol rioplatense formal
+- En espaÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±ol rioplatense formal
 
 DEVUELVE SOLO UN JSON valido con esta estructura exacta:
 {{
