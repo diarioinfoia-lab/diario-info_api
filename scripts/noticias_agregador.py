@@ -197,7 +197,7 @@ Contenido: {articulo['cuerpo'][:2000]}
 INSTRUCCIONES:
 - Estilo periodistico profesional, claro y atractivo
 - Sin emojis ni simbolos especiales
-- En espaÃÂÃÂ±ol rioplatense formal
+- En espaÃÂÃÂÃÂÃÂ±ol rioplatense formal
 
 DEVUELVE SOLO UN JSON valido con esta estructura exacta:
 {{
@@ -329,10 +329,15 @@ def main():
             if not articulo:
                 continue
             
-            # Reescritura con Gemini
+            # Reescritura con Gemini (fallback a original si Gemini falla)
             nota_reescrita = reescribir_con_gemini(articulo, fuente['categoria'])
             if not nota_reescrita:
-                continue
+                logger.warning("Gemini no disponible, usando contenido original")
+                nota_reescrita = {
+                    "titulo": articulo['titulo'],
+                    "copete": articulo['cuerpo'][:200].split('.')[0] + ".",
+                    "cuerpo": articulo['cuerpo']
+                }
             
             # Publicar en CMS
             categoria_id = CATEGORIAS[fuente['categoria']]
