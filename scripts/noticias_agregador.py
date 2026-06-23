@@ -159,27 +159,53 @@ def es_reciente(soup, fuente, horas_max=5):
 
 
 def extraer_imagen_principal(soup, fuente):
-    """Extrae la URL de la imagen principal del articulo."""
-    for sel in fuente['selector_imagen'].split(','):
-        el = soup.select_one(sel.strip())
-        if el:
-            src = el.get('src') or el.get('data-src') or el.get('data-lazy-src') or el.get('data-original')
+    """Extrae la imagen principal: og:image > twitter:image > primera img del cuerpo."""
+    # 1. Prioridad maxima: og:image (imagen destacada de redes sociales)
+    og = soup.find('meta', property='og:image') or soup.find('meta', attrs={'name':'og:image'})
+    if og:
+        src = og.get('content', '')
+        if src and src.startswith('http') and not src.endswith('.gif'):
+            return src
+    # 2. twitter:image
+    tw = soup.find('meta', attrs={'name':'twitter:image'}) or soup.find('meta', property='twitter:image')
+    if tw:
+        src = tw.get('content', '')
+        if src and src.startswith('http') and not src.endswith('.gif'):
+            return src
+    # 3. link rel=image_src
+    link_img = soup.find('link', rel='image_src')
+    if link_img:
+        src = link_img.get('href', '')
+        if src and src.startswith('http'):
+            return src
+    # 4. Primera imagen grande dentro del cuerpo del articulo (NO galeria)
+    SKIP_KEYWORDS = ['logo', 'icon', 'avatar', 'ad', 'banner', 'pixel', 'thumb',
+                     'galeria', 'gallery', 'slider', 'carousel', 'widget', 'sidebar',
+                     'publicidad', 'sponsors', 'footer', 'header', 'nav']
+    body_selectors = ['article img', '.nota__body img', '.article-body img',
+                      '.entry-content img', '.post-content img', 'main img']
+    for sel in body_selectors:
+        for img in soup.select(sel):
+            # Saltar imagenes en galeras
+            parent_classes = ' '.join([
+                ' '.join(p.get('class', []))
+                for p in img.parents
+                if hasattr(p, 'get')
+            ][:5]).lower()
+            if any(k in parent_classes for k in ['galeria', 'gallery', 'slider', 'carousel']):
+                continue
+            src = (img.get('src') or img.get('data-src') or
+                   img.get('data-lazy-src') or img.get('data-original') or '')
+            if not src:
+                srcset = img.get('srcset', '')
+                if srcset:
+                    parts = [p.strip().split(' ')[0] for p in srcset.split(',')]
+                    src = next((p for p in reversed(parts) if p.startswith('http')), '')
             if src and src.startswith('http') and not src.endswith('.gif'):
-                return src
-            # Manejar srcset
-            srcset = el.get('srcset')
-            if srcset:
-                partes = srcset.split(',')
-                for p in reversed(partes):
-                    url = p.strip().split(' ')[0]
-                    if url.startswith('http'):
-                        return url
-    # Fallback: buscar cualquier img con src http
-    for img in soup.find_all('img'):
-        src = img.get('src', '')
-        if src.startswith('http') and any(ext in src for ext in ['.jpg', '.jpeg', '.png', '.webp']):
-            if not any(skip in src for skip in ['logo', 'icon', 'avatar', 'ad', 'banner', 'pixel']):
-                return src
+                if not any(skip in src.lower() for skip in SKIP_KEYWORDS):
+                    # Descartar imagenes muy pequenas por nombre (thumb, small)
+                    if not any(x in src.lower() for x in ['-50x', '-75x', '-100x', '-150x', 'thumbnail']):
+                        return src
     return None
 
 
@@ -372,6 +398,49 @@ def registrar_imagen_en_files(col_files, imagen_url, credito, titulo_articulo):
         return None
 
 
+
+def generar_tags(titulo, copete, categoria, fuente_nombre):
+    """Genera tags automaticos desde el titulo y contenido de la nota."""
+    import unicodedata
+    tags = set()
+    # Tag fijo: agregador y categoria
+    tags.add('agregador')
+    tags.add(categoria)
+    # Tag del medio fuente
+    fuente_tag = fuente_nombre.lower().replace(' ', '-')
+    tags.add(fuente_tag)
+    # Extraer palabras clave del titulo (nombres propios y palabras importantes)
+    texto = (titulo + ' ' + copete).lower()
+    # Normalizar acentos para busqueda
+    texto_norm = unicodedata.normalize('NFD', texto)
+    texto_norm = ''.join(c for c in texto_norm if unicodedata.category(c) != 'Mn')
+    # Palabras clave de categorias
+    KEYWORDS_POLICIAL = ['detenido', 'arrestado', 'policia', 'robo', 'hurto', 'asesinato',
+                         'homicidio', 'droga', 'secuestro', 'accidente', 'choque', 'fallecio',
+                         'murio', 'herido', 'dfi', 'penal', 'judicial', 'fiscal', 'imputado',
+                         'condena', 'prision', 'carcel', 'fugado', 'allanamiento']
+    KEYWORDS_ESPEC = ['musica', 'cine', 'teatro', 'television', 'tele', 'actor', 'actriz',
+                      'cantante', 'banda', 'pelicula', 'serie', 'show', 'espectaculo',
+                      'famoso', 'celebridad', 'argentina', 'seleccion', 'futbol',
+                      'novela', 'album', 'gira', 'concierto', 'partido']
+    for kw in KEYWORDS_POLICIAL + KEYWORDS_ESPEC:
+        if kw in texto_norm:
+            tags.add(kw)
+    # Extraer palabras con mayuscula inicial del titulo (posibles nombres propios)
+    palabras = titulo.split()
+    STOPWORDS = {'el','la','los','las','un','una','unos','unas','de','del','al','en','por',
+                 'con','sin','sobre','entre','para','que','se','su','sus','fue','es','era',
+                 'son','han','hay','tras','ante','bajo','como','mas','pero','y','e','o','u',
+                 'a','le','les','lo','me','te','nos','les','si','no','ya','muy','bien'}
+    for i, p in enumerate(palabras):
+        p_clean = re.sub(r'[^a-zA-ZaeiouAEIOUntNTÀ-ž]', '', p)
+        if (len(p_clean) >= 4 and p_clean[0].isupper() and i > 0
+                and p_clean.lower() not in STOPWORDS):
+            tags.add(p_clean.lower())
+    # Limitar a 8 tags, ordenados
+    result = sorted(list(tags))[:8]
+    return result
+
 def conectar_mongo():
     """Conecta a MongoDB y retorna (col_articles, col_files) o (None, None)."""
     if not PYMONGO_OK:
@@ -423,7 +492,7 @@ def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_orig
             "priority": 0,
             "destination": [],
             "validityHours": 0,
-            "tags": ["agregador", "automatico"],
+            "tags": generar_tags(titulo, nota_reescrita.get("copete", ""), categoria_id, credito_imagen),
             "articleType": "nota",
             "sourceUrl": url_original,
             "slug": slug,
