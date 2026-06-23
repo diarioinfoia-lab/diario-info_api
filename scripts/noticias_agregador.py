@@ -1,169 +1,256 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Agregador Automatico de Noticias - DiarioInfo
-Scraping + Reescritura con Gemini + Publicacion en ia2.diarioinfo.com
-Ejecutar cada 2 horas con cron: 0 */2 * * * python3 /path/to/noticias_agregador.py
+Agregador de Noticias - DiarioInfo
+Scrapea fuentes, reescribe con Gemini, inserta en MongoDB como DRAFT con imagen y slug.
+Filtra noticias de las ultimas 5 horas.
 """
 
 import requests
-from bs4 import BeautifulSoup
 import json
 import time
-import logging
-import hashlib
 import os
-from datetime import datetime, timezone
+import re
+import unicodedata
+import logging
+from datetime import datetime, timezone, timedelta
+from bs4 import BeautifulSoup
+
+# ── pymongo ──────────────────────────────────────────────────────────────────
 try:
     from pymongo import MongoClient
+    from bson import ObjectId
     PYMONGO_OK = True
 except ImportError:
     PYMONGO_OK = False
 
-# ============================================================
-# CONFIGURACION
-# ============================================================
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
-# MongoDB directo (bypass API REST)
-MONGO_URI = "mongodb+srv://diarioinfoio_db_user:lYcxG4pf5oCOgYnq@cluster0.c621o4c.mongodb.net/?retryWrites=true&w=majority"
-MONGO_DB = "diarioinfo-db"
+# ── Configuracion ─────────────────────────────────────────────────────────────
+MONGO_URI        = "mongodb+srv://diarioinfoio_db_user:lYcxG4pf5oCOgYnq@cluster0.c621o4c.mongodb.net/?retryWrites=true&w=majority"
+MONGO_DB         = "diarioinfo-db"
 MONGO_COLLECTION = "articles"
+MONGO_FILES_COL  = "files"
 
-# Gemini API
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "PLACEHOLDER_API_KEY")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_API_URL   = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
-# IDs de categorias en ia2
-CATEGORIAS = {
-    "espectaculos": "6a3342c75434513110dc600d",  # Interes General
-    "policiales":   "6a334334eb8695e5e835fe7b",  # Policiales
-    "judiciales":   "6a3343f07a9322b5cad47534",  # Judicial
-}
+HORAS_MAX        = 5   # Solo noticias de las ultimas N horas
 
-# Archivo para registrar URLs ya procesadas (evitar duplicados)
-PROCESADAS_FILE = "/home/diarioin/scripts/urls_procesadas.json"
-
-# Fuentes de noticias
 FUENTES = [
     {
-        "nombre": "El Liberal - Policiales",
-        "url": "https://www.elliberal.com.ar/?is=121",
+        "nombre": "El Liberal Policiales",
+        "url": "https://www.elliberal.com.ar/policiales/",
         "selector_lista": "a[href*='/nota/']",
-        "selector_titulo": "h1.nota-titulo, h1",
-        "selector_cuerpo": ".nota-texto-cuerpo p, article p, .nota-body p, .contenido-nota p",
-        "base_url": "https://www.elliberal.com.ar",
+        "selector_titulo": "h1.nota__title, h1.article__title, h1",
+        "selector_cuerpo": "div.nota__body p, div.article__body p, article p",
+        "selector_imagen": "div.nota__image img, div.article__image img, figure img, article img",
+        "selector_fecha": "time, span.fecha, .nota__date, .article__date",
         "categoria": "policiales",
-        "max_articulos": 3
+        "credito": "El Liberal"
     },
     {
-        "nombre": "Diario Panorama - Policiales",
-        "url": "https://www.diariopanorama.com/secciones/14/policiales",
+        "nombre": "Diario Panorama Policiales",
+        "url": "https://www.diariopanorama.com/seccion/policiales_22",
         "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
-        "selector_titulo": "h1, .article-title",
-        "selector_cuerpo": "article p, .article-body p, .entry-content p, .nota p, .cuerpo p, .content p",
-        "base_url": "https://www.diariopanorama.com",
+        "selector_titulo": "h1.article-title, h1.entry-title, h1",
+        "selector_cuerpo": "div.article-body p, div.entry-content p, article p",
+        "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
+        "selector_fecha": "time, .article-date, .entry-date, span.date",
         "categoria": "policiales",
-        "max_articulos": 3
+        "credito": "Diario Panorama"
     },
     {
-        "nombre": "Diario Panorama - Espectaculos",
-        "url": "https://www.diariopanorama.com/secciones/18/espectaculos",
-        "selector_lista": "h2 a, h3 a, .news-title a",
-        "selector_titulo": "h1, .article-title",
-        "selector_cuerpo": "article p, .article-body p, .entry-content p",
-        "base_url": "https://www.diariopanorama.com",
+        "nombre": "Diario Panorama Espectaculos",
+        "url": "https://www.diariopanorama.com/seccion/espectaculos_47",
+        "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
+        "selector_titulo": "h1.article-title, h1.entry-title, h1",
+        "selector_cuerpo": "div.article-body p, div.entry-content p, article p",
+        "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
+        "selector_fecha": "time, .article-date, .entry-date, span.date",
         "categoria": "espectaculos",
-        "max_articulos": 2
+        "credito": "Diario Panorama"
     },
     {
         "nombre": "La Nacion Espectaculos",
         "url": "https://www.lanacion.com.ar/espectaculos/",
-        "selector_lista": "article.mod-article a.com-link, h2.com-title a",
-        "selector_titulo": "h1.com-title, h1",
-        "selector_cuerpo": ".body-nota p, .article-body p, article p",
-        "base_url": "https://www.lanacion.com.ar",
+        "selector_lista": "h2 a, h3 a, article a, a[href*='/espectaculos/']",
+        "selector_titulo": "h1.headline, h1",
+        "selector_cuerpo": "div.article-body p, div.body-article p, article p",
+        "selector_imagen": "div.article-image img, figure img, picture img, article img",
+        "selector_fecha": "time, span.fecha, .article-date",
         "categoria": "espectaculos",
-        "max_articulos": 2
-    },
+        "credito": "La Nacion"
+    }
 ]
 
-# ============================================================
-# LOGGING
-# ============================================================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("/home/diarioin/scripts/noticias.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "es-AR,es;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+CATEGORIAS = {
+    "policiales": "policiales",
+    "espectaculos": "espectaculos",
+    "judiciales": "judiciales"
 }
+
+URLS_FILE = "/home/diarioin/scripts/urls_procesadas.json"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def generar_slug(titulo):
+    """Genera un slug URL-amigable desde el titulo."""
+    s = titulo.lower().strip()
+    # Reemplazar caracteres acentuados
+    s = unicodedata.normalize('NFD', s)
+    s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+    # Reemplazar caracteres no alfanumericos por guion
+    s = re.sub(r'[^a-z0-9\s-]', '', s)
+    s = re.sub(r'[\s_]+', '-', s)
+    s = re.sub(r'-+', '-', s)
+    s = s.strip('-')
+    # Limitar largo a 80 caracteres
+    if len(s) > 80:
+        s = s[:80].rsplit('-', 1)[0]
+    # Agregar timestamp para unicidad
+    ts = datetime.now().strftime('%Y%m%d%H%M')
+    return f"{s}-{ts}"
+
+
+def parsear_fecha_articulo(soup, fuente):
+    """Intenta extraer la fecha de publicacion del articulo."""
+    for sel in fuente['selector_fecha'].split(','):
+        el = soup.select_one(sel.strip())
+        if el:
+            # Buscar atributo datetime primero
+            dt_attr = el.get('datetime') or el.get('data-datetime') or el.get('content')
+            if dt_attr:
+                try:
+                    # Parsear ISO 8601
+                    dt_attr = dt_attr.replace('Z', '+00:00')
+                    return datetime.fromisoformat(dt_attr)
+                except Exception:
+                    pass
+            # Intentar parsear el texto
+            txt = el.get_text(strip=True)
+            for fmt in ['%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M:%S', '%d de %B de %Y']:
+                try:
+                    return datetime.strptime(txt[:16], fmt).replace(tzinfo=timezone.utc)
+                except Exception:
+                    pass
+    return None
+
+
+def es_reciente(soup, fuente, horas_max=5):
+    """Devuelve True si el articulo fue publicado en las ultimas horas_max horas."""
+    fecha = parsear_fecha_articulo(soup, fuente)
+    if fecha is None:
+        # Si no se puede determinar la fecha, aceptar el articulo
+        logger.debug("No se pudo determinar fecha, aceptando articulo")
+        return True
+    ahora = datetime.now(timezone.utc)
+    if fecha.tzinfo is None:
+        fecha = fecha.replace(tzinfo=timezone.utc)
+    antiguedad = ahora - fecha
+    logger.debug(f"Fecha articulo: {fecha}, antiguedad: {antiguedad}")
+    return antiguedad <= timedelta(hours=horas_max)
+
+
+def extraer_imagen_principal(soup, fuente):
+    """Extrae la URL de la imagen principal del articulo."""
+    for sel in fuente['selector_imagen'].split(','):
+        el = soup.select_one(sel.strip())
+        if el:
+            src = el.get('src') or el.get('data-src') or el.get('data-lazy-src') or el.get('data-original')
+            if src and src.startswith('http') and not src.endswith('.gif'):
+                return src
+            # Manejar srcset
+            srcset = el.get('srcset')
+            if srcset:
+                partes = srcset.split(',')
+                for p in reversed(partes):
+                    url = p.strip().split(' ')[0]
+                    if url.startswith('http'):
+                        return url
+    # Fallback: buscar cualquier img con src http
+    for img in soup.find_all('img'):
+        src = img.get('src', '')
+        if src.startswith('http') and any(ext in src for ext in ['.jpg', '.jpeg', '.png', '.webp']):
+            if not any(skip in src for skip in ['logo', 'icon', 'avatar', 'ad', 'banner', 'pixel']):
+                return src
+    return None
 
 
 def cargar_urls_procesadas():
-    """Carga el set de URLs ya procesadas para evitar duplicados."""
-    if os.path.exists(PROCESADAS_FILE):
-        with open(PROCESADAS_FILE, "r") as f:
-            return set(json.load(f))
+    """Carga URLs ya procesadas desde archivo."""
+    if os.path.exists(URLS_FILE):
+        try:
+            with open(URLS_FILE, 'r') as f:
+                return set(json.load(f))
+        except Exception:
+            pass
     return set()
 
 
-def guardar_url_procesada(url, urls_procesadas):
-    """Agrega una URL al set de procesadas y guarda en disco."""
-    urls_procesadas.add(url)
-    os.makedirs(os.path.dirname(PROCESADAS_FILE), exist_ok=True)
-    with open(PROCESADAS_FILE, "w") as f:
-        json.dump(list(urls_procesadas), f)
+def guardar_url_procesada(url, urls_set):
+    """Guarda una URL en el archivo de procesadas."""
+    urls_set.add(url)
+    try:
+        with open(URLS_FILE, 'w') as f:
+            json.dump(list(urls_set), f)
+    except Exception as e:
+        logger.error(f"Error guardando URL procesada: {e}")
 
 
 def scrape_lista_articulos(fuente):
-    """Obtiene la lista de URLs de articulos de una fuente."""
+    """Obtiene lista de URLs de articulos de una fuente."""
     try:
-        resp = requests.get(fuente['url'], headers=HEADERS, timeout=15)
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; DiarioInfoBot/1.0)'}
+        resp = requests.get(fuente['url'], headers=headers, timeout=15)
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-        links = []
-        for selector in fuente['selector_lista'].split(","):
-            selector = selector.strip()
-            for el in soup.select(selector):
-                href = el.get("href", "")
-                if href and len(href) > 5:
-                    if not href.startswith("http"):
-                        href = fuente['base_url'] + href
-                    if href not in links:
-                        links.append(href)
-        logger.info(f"[{fuente['nombre']}] {len(links)} links encontrados")
-        return links[:fuente['max_articulos'] * 3]  # Tomar extra por si algunos fallan
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        urls = set()
+        for sel in fuente['selector_lista'].split(','):
+            for a in soup.select(sel.strip()):
+                href = a.get('href', '')
+                if href:
+                    if not href.startswith('http'):
+                        from urllib.parse import urljoin
+                        href = urljoin(fuente['url'], href)
+                    urls.add(href)
+        logger.info(f"Links {fuente['nombre']}: {len(urls)}")
+        return list(urls)[:15]
     except Exception as e:
         logger.error(f"Error scrapeando lista {fuente['nombre']}: {e}")
         return []
 
 
 def scrape_articulo(url, fuente):
-    """Extrae el contenido de un articulo individual."""
+    """Scrape un articulo y retorna titulo, cuerpo, imagen y url_original."""
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; DiarioInfoBot/1.0)'}
+        resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-        
-        # Titulo
-        titulo = ""
-        for sel in fuente['selector_titulo'].split(","):
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        # ── Filtro de fecha ──────────────────────────────────────────────────
+        if not es_reciente(soup, fuente, HORAS_MAX):
+            logger.info(f"Articulo demasiado antiguo (> {HORAS_MAX}h), descartado: {url}")
+            return None
+
+        # ── Titulo ───────────────────────────────────────────────────────────
+        titulo = None
+        for sel in fuente['selector_titulo'].split(','):
             el = soup.select_one(sel.strip())
             if el:
                 titulo = el.get_text(strip=True)
                 break
-        
-        # Cuerpo
+
+        # ── Cuerpo ───────────────────────────────────────────────────────────
         parrafos = []
-        for sel in fuente['selector_cuerpo'].split(","):
+        for sel in fuente['selector_cuerpo'].split(','):
             elements = soup.select(sel.strip())
             for el in elements:
                 text = el.get_text(strip=True)
@@ -171,24 +258,35 @@ def scrape_articulo(url, fuente):
                     parrafos.append(text)
             if len(parrafos) >= 4:
                 break
-        
+
         cuerpo = " ".join(parrafos[:8])
-        
-        # Si no hay titulo, intentar el tag h1 genÃ©rico
+
+        # ── Fallback titulo ──────────────────────────────────────────────────
         if not titulo:
             h1 = soup.find("h1")
             if h1:
                 titulo = h1.get_text(strip=True)
-        # Si no hay cuerpo con pÃ¡rrafos grandes, tomar todos los pÃ¡rrafos del artÃ­culo
+
+        # ── Fallback cuerpo ──────────────────────────────────────────────────
         if not cuerpo:
             all_p = soup.find_all("p")
             parrafos_alt = [p.get_text(strip=True) for p in all_p if len(p.get_text(strip=True)) > 30]
             cuerpo = " ".join(parrafos_alt[:10])
+
         if not titulo or not cuerpo:
             logger.warning(f"Articulo incompleto en {url}")
             return None
-        
-        return {"titulo": titulo, "cuerpo": cuerpo, "url_original": url}
+
+        # ── Imagen principal ─────────────────────────────────────────────────
+        imagen_url = extraer_imagen_principal(soup, fuente)
+
+        return {
+            "titulo": titulo,
+            "cuerpo": cuerpo,
+            "url_original": url,
+            "imagen_url": imagen_url,
+            "credito_imagen": fuente.get("credito", "")
+        }
     except Exception as e:
         logger.error(f"Error scrapeando articulo {url}: {e}")
         return None
@@ -198,26 +296,22 @@ def reescribir_con_gemini(articulo, categoria):
     """Usa Gemini para reescribir el articulo en formato DiarioInfo."""
     prompt = f"""
 Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.
-Reescribe la siguiente nota en formato periodistico institucional.
-
-NOTA ORIGINAL:
-Titulo: {articulo['titulo']}
-Contenido: {articulo['cuerpo'][:2000]}
-
-INSTRUCCIONES:
-- Estilo periodistico profesional, claro y atractivo
-- Sin emojis ni simbolos especiales
-- En espaÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±ol rioplatense formal
-
-DEVUELVE SOLO UN JSON valido con esta estructura exacta:
+Reescribe la siguiente noticia de {categoria} en formato periodistico profesional.
+La nota debe ser original, no copiar textualmente la fuente.
+Responde SOLO con un JSON con esta estructura exacta:
 {{
-  "titulo": "Titulo atractivo (maximo 15 palabras)",
-  "copete": "Bajada breve de 1-2 oraciones que resume lo esencial",
-  "cuerpo": "Cuerpo narrativo de 3-4 parrafos separados por \\n\\n"
+  "titulo": "Titulo atractivo y periodistico (max 100 chars)",
+  "copete": "Primer parrafo breve que resume la noticia (max 200 chars)",
+  "cuerpo": "Cuerpo completo de la nota bien redactado (min 300 chars)"
 }}
+
+NOTICIA ORIGINAL:
+Titulo: {articulo['titulo']}
+Cuerpo: {articulo['cuerpo'][:1500]}
 """
-    
     try:
+        if not GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY no configurada")
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024}
@@ -230,7 +324,7 @@ DEVUELVE SOLO UN JSON valido con esta estructura exacta:
         resp.raise_for_status()
         data = resp.json()
         text = data['candidates'][0]["content"]["parts"][0]["text"]
-        # Limpiar markdown si viene con ```json
+        # Limpiar markdown si viene con json
         text = text.strip()
         if text.startswith("```"):
             text = text.split("```")[1]
@@ -243,50 +337,109 @@ DEVUELVE SOLO UN JSON valido con esta estructura exacta:
         return None
 
 
+def registrar_imagen_en_files(col_files, imagen_url, credito, titulo_articulo):
+    """Registra la imagen externa en la coleccion files y retorna su ObjectId."""
+    try:
+        fecha_ahora = datetime.now(timezone.utc)
+        # Extraer nombre de archivo de la URL
+        nombre_archivo = imagen_url.split('/')[-1].split('?')[0] or 'imagen.jpg'
+        if not any(nombre_archivo.endswith(ext) for ext in ['.jpg','.jpeg','.png','.webp','.gif']):
+            nombre_archivo += '.jpg'
+
+        doc_file = {
+            "fileName": nombre_archivo,
+            "originalName": nombre_archivo,
+            "fileUrl": imagen_url,
+            "thumbnailUrl": imagen_url,
+            "description": f"Imagen de {credito} - {titulo_articulo[:80]}",
+            "mimeType": "image/jpeg",
+            "size": 0,
+            "width": 0,
+            "height": 0,
+            "uploadedBy": "agregador-automatico",
+            "usageCount": 0,
+            "isExternal": True,
+            "creditSource": credito,
+            "createdAt": fecha_ahora,
+            "updatedAt": fecha_ahora,
+            "__v": 0
+        }
+        result = col_files.insert_one(doc_file)
+        logger.info(f"Imagen registrada en files: {imagen_url[:60]}... (ID: {result.inserted_id})")
+        return result.inserted_id
+    except Exception as e:
+        logger.error(f"Error registrando imagen en files: {e}")
+        return None
+
+
 def conectar_mongo():
-    """Conecta a MongoDB y retorna la coleccion de articulos."""
+    """Conecta a MongoDB y retorna (col_articles, col_files) o (None, None)."""
     if not PYMONGO_OK:
         logger.error("pymongo no instalado. Ejecutar: pip install pymongo")
-        return None
+        return None, None
     try:
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
         client.server_info()
         db = client[MONGO_DB]
-        col = db[MONGO_COLLECTION]
+        col_art = db[MONGO_COLLECTION]
+        col_files = db[MONGO_FILES_COL]
         logger.info("Conexion MongoDB exitosa")
-        return col
+        return col_art, col_files
     except Exception as e:
         logger.error(f"Error conectando MongoDB: {e}")
-        return None
+        return None, None
 
 
-def publicar_articulo(nota_reescrita, categoria_id, col, url_original):
-    """Inserta un articulo directamente en MongoDB."""
+def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_original, imagen_url, credito_imagen):
+    """Inserta un articulo en MongoDB como DRAFT con imagen y slug."""
     try:
         fecha_ahora = datetime.now(timezone.utc)
-        slug = hashlib.md5(nota_reescrita['titulo'].encode()).hexdigest()[:12]
-        if col.find_one({"slug": slug}):
-            logger.info(f"Articulo ya existe (slug): {slug}")
-            return True
-        parrafos = nota_reescrita["cuerpo"].split("\n\n")
-        cuerpo_html = "".join(f"<p>{p.strip()}</p>" for p in parrafos if p.strip())
+        titulo = nota_reescrita['titulo']
+
+        # ── Generar slug unico ───────────────────────────────────────────────
+        slug = generar_slug(titulo)
+
+        # ── Registrar imagen si existe ───────────────────────────────────────
+        image_id = None
+        if imagen_url and col_files:
+            image_id = registrar_imagen_en_files(col_files, imagen_url, credito_imagen, titulo)
+
+        # ── Preparar HTML del cuerpo ─────────────────────────────────────────
+        cuerpo_html = nota_reescrita.get('cuerpo', '')
+        if not cuerpo_html.strip().startswith('<'):
+            parrafos = cuerpo_html.split('\n\n') if '\n\n' in cuerpo_html else [cuerpo_html]
+            cuerpo_html = ''.join(f'<p>{p.strip()}</p>' for p in parrafos if p.strip())
+
         doc = {
-            "title": nota_reescrita['titulo'],
-            "description": nota_reescrita["copete"],
+            "title": titulo,
+            "description": nota_reescrita.get('copete', cuerpo_html[:200]),
             "content": cuerpo_html,
             "category": categoria_id,
-            "status": "published",
-            "publishedAt": fecha_ahora,
+            "status": "draft",
+            "isHighlighted": False,
+            "publicationDate": fecha_ahora,
+            "commentsDisabled": False,
+            "keyPoints": [],
+            "priority": 0,
+            "destination": [],
+            "validityHours": 0,
+            "tags": ["agregador", "automatico"],
+            "articleType": "nota",
+            "sourceUrl": url_original,
+            "slug": slug,
+            "author": "Redaccion DiarioInfo",
+            "createdBy": "agregador-automatico",
             "createdAt": fecha_ahora,
             "updatedAt": fecha_ahora,
-            "author": "Redaccion DiarioInfo",
-            "slug": slug,
-            "tags": ["agregador", "automatico"],
-            "sourceUrl": url_original,
             "__v": 0
         }
-        result = col.insert_one(doc)
-        logger.info(f"Articulo insertado: {nota_reescrita['titulo']} (ID: {result.inserted_id})")
+
+        # Agregar imageId solo si se registro imagen
+        if image_id:
+            doc["imageId"] = str(image_id)
+
+        result = col_art.insert_one(doc)
+        logger.info(f"Articulo insertado como DRAFT: {titulo} (slug: {slug}) (ID: {result.inserted_id})")
         return True
     except Exception as e:
         logger.error(f"Error insertando articulo MongoDB: {e}")
@@ -298,69 +451,74 @@ def main():
     logger.info("=" * 60)
     logger.info("Iniciando agregador de noticias DiarioInfo")
     logger.info(f"Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Filtrando noticias de las ultimas {HORAS_MAX} horas")
     logger.info("=" * 60)
-    
+
     # Cargar URLs ya procesadas
     urls_procesadas = cargar_urls_procesadas()
     logger.info(f"URLs procesadas previamente: {len(urls_procesadas)}")
-    
+
     # Conectar a MongoDB
-    col = conectar_mongo()
-    if col is None:
+    col_art, col_files = conectar_mongo()
+    if col_art is None:
         logger.error("No se pudo conectar a MongoDB. Abortando.")
         return
-    
+
     total_publicados = 0
-    
+
     # Procesar cada fuente
     for fuente in FUENTES:
         logger.info(f"\nProcesando fuente: {fuente['nombre']}")
-        
+
         # Obtener lista de articulos
         urls = scrape_lista_articulos(fuente)
         if not urls:
             continue
-        
+
         publicados_fuente = 0
-        
+
         for url in urls:
             # Verificar si ya fue procesada
             if url in urls_procesadas:
                 logger.debug(f"Ya procesada: {url}")
                 continue
-            
-            if publicados_fuente >= fuente['max_articulos']:
-                break
-            
-            logger.info(f"Procesando: {url}")
-            
-            # Scraping del articulo
+
+            # Scrape del articulo (incluye filtro de fecha)
             articulo = scrape_articulo(url, fuente)
             if not articulo:
+                guardar_url_procesada(url, urls_procesadas)
                 continue
-            
-            # Reescritura con Gemini (fallback a original si Gemini falla)
+
+            # Reescribir con Gemini (con fallback)
             nota_reescrita = reescribir_con_gemini(articulo, fuente['categoria'])
             if not nota_reescrita:
-                logger.warning("Gemini no disponible, usando contenido original")
+                logger.warning(f"Gemini no disponible, usando contenido original")
                 nota_reescrita = {
                     "titulo": articulo['titulo'],
                     "copete": articulo['cuerpo'][:200].split('.')[0] + ".",
                     "cuerpo": articulo['cuerpo']
                 }
-            
-            # Publicar en CMS
+
+            # Publicar en MongoDB
             categoria_id = CATEGORIAS[fuente['categoria']]
-            if publicar_articulo(nota_reescrita, categoria_id, col, url):
+            if publicar_articulo(
+                nota_reescrita,
+                categoria_id,
+                col_art,
+                col_files,
+                url,
+                articulo.get('imagen_url'),
+                articulo.get('credito_imagen', fuente.get('credito', ''))
+            ):
                 guardar_url_procesada(url, urls_procesadas)
                 publicados_fuente += 1
                 total_publicados += 1
-            
+
             # Pausa entre articulos para no sobrecargar
             time.sleep(2)
-        
+
         logger.info(f"[{fuente['nombre']}] {publicados_fuente} articulos publicados")
-    
+
     logger.info(f"\nTOTAL publicados esta ejecucion: {total_publicados}")
     logger.info("Agregador finalizado")
 
