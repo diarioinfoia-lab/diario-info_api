@@ -271,6 +271,7 @@ def truncar(texto, max_chars):
 # ============================================================
 def generar_tapa(c, notas, cotizaciones, clima):
     from reportlab.lib.units import mm
+    FONT_N = "Lato-Regular" if "Lato-Regular" in FUENTES_OK else "Helvetica"
     W = A4[0]
     H = A4[1]
     MARGEN = 15 * mm
