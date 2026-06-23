@@ -13,10 +13,12 @@ from datetime import datetime, timezone, timedelta
 # ============================================================
 # CONFIGURACION
 # ============================================================
-MONGO_URI = "mongodb+srv://diarioinfoio_db_user:lYcxG4pf5oCOgYnq@cluster0.c621o4c.mongodb.net/?retryWrites=true&w=majority"
-MONGO_DB = "diarioinfo-db"
-MONGO_COLLECTION = "articles"
-MONGO_FILES_COLLECTION = "files"
+MONGO_URI_PRIMARY    = "mongodb+srv://diarioinfoio_db_user:lYcxG4pf5oCOgYnq@cluster0.c621o4c.mongodb.net/diarioinfo-db?retryWrites=true&w=majority"
+MONGO_URI_FALLBACK   = "mongodb+srv://diarioinfoia_db_user:lYcxG4pf5oCOgYnq@cluster0.wypjl60.mongodb.net/diario-info-db?retryWrites=true&w=majority"
+MONGO_DB_PRIMARY     = "diarioinfo-db"
+MONGO_DB_FALLBACK    = "diario-info-db"
+MONGO_COLLECTION     = "articles"
+MONGO_FILES_COLL     = "files"
 
 SITE_URL = "https://diarioinfo.com"
 LEMA = "Informacion Inteligente"
@@ -129,48 +131,68 @@ FONT_TB = "Lato-Bold" if "Lato-Bold" in FUENTES_OK else "Helvetica-Bold"
 # MONGODB - Obtener notas
 # ============================================================
 def obtener_notas(limite=15):
-    print("Conectando a MongoDB...")
-    try:
-        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
-        db = client[MONGO_DB]
-        col_art = db[MONGO_COLLECTION]
-        col_files = db[MONGO_FILES_COLLECTION]
-        cursor = col_art.find(
-            {"status": "published"},
-            {"_id":1,"title":1,"excerpt":1,"content":1,"imageId":1,
-             "slug":1,"tags":1,"category":1,"publishedAt":1,"sourceUrl":1}
-        ).sort("publishedAt", -1).limit(limite)
-        notas = []
-        for doc in cursor:
-            nota = {
-                "id": str(doc["_id"]),
-                "titulo": doc.get("title", "Sin titulo"),
-                "copete": doc.get("excerpt", ""),
-                "cuerpo": doc.get("content", ""),
-                "slug": doc.get("slug", ""),
-                "tags": doc.get("tags", []),
-                "categoria": doc.get("category", "General"),
-                "url_original": doc.get("sourceUrl", SITE_URL),
-                "imagen_url": None,
-                "imagen_credito": ""
-            }
-            image_id = doc.get("imageId")
-            if image_id and col_files is not None:
-                try:
-                    file_doc = col_files.find_one({"_id": ObjectId(str(image_id))})
-                    if file_doc:
-                        nota["imagen_url"] = file_doc.get("fileUrl", file_doc.get("thumbnailUrl",""))
-                        nota["imagen_credito"] = file_doc.get("creditSource","")
-                except Exception:
-                    pass
-            notas.append(nota)
-        print(f"  {len(notas)} notas obtenidas")
-        client.close()
-        return notas
-    except Exception as e:
-        print(f"  Error MongoDB: {e}")
-        return []
-
+    """Obtiene las ultimas notas publicadas, igual que la API del CMS.
+    Intenta primero el cluster principal (c621o4c / diarioinfo-db),
+    y hace fallback al cluster secundario (wypjl60 / diario-info-db)."""
+    configs = [
+        (MONGO_URI_PRIMARY, MONGO_DB_PRIMARY),
+        (MONGO_URI_FALLBACK, MONGO_DB_FALLBACK),
+    ]
+    for uri, db_name in configs:
+        print(f"Intentando MongoDB: {db_name}...")
+        try:
+            client = MongoClient(uri, serverSelectionTimeoutMS=8000)
+            db = client[db_name]
+            col_art = db[MONGO_COLLECTION]
+            col_files = db[MONGO_FILES_COLL]
+            # Verificar conexion
+            client.server_info()
+            cursor = col_art.find(
+                {"status": "published"},
+                {"_id":1,"title":1,"excerpt":1,"content":1,"imageId":1,
+                 "slug":1,"tags":1,"category":1,"publishedAt":1,"sourceUrl":1}
+            ).sort("publishedAt", -1).limit(limite)
+            notas = []
+            for doc in cursor:
+                cat_raw = str(doc.get("category", "NOTICIAS"))
+                cat = cat_raw if len(cat_raw) < 30 else "NOTICIAS"
+                nota = {
+                    "id": str(doc["_id"]),
+                    "titulo": doc.get("title", "Sin titulo"),
+                    "copete": doc.get("excerpt", ""),
+                    "cuerpo": doc.get("content", ""),
+                    "slug": doc.get("slug", ""),
+                    "tags": doc.get("tags", []),
+                    "categoria": cat,
+                    "publicado": doc.get("publishedAt", ""),
+                    "fuente_url": doc.get("sourceUrl", ""),
+                    "imagen_url": None,
+                    "imagen_credito": ""
+                }
+                image_id = doc.get("imageId")
+                if image_id and col_files is not None:
+                    try:
+                        file_doc = col_files.find_one({"_id": ObjectId(str(image_id))})
+                        if file_doc:
+                            img_url = file_doc.get("fileUrl", file_doc.get("thumbnailUrl",""))
+                            if img_url and img_url.startswith("/"):
+                                img_url = "https://ia.diarioinfo.com" + img_url
+                            nota["imagen_url"] = img_url
+                            nota["imagen_credito"] = file_doc.get("creditSource","")
+                    except Exception:
+                        pass
+                notas.append(nota)
+            print(f"  {len(notas)} notas obtenidas desde {db_name}")
+            client.close()
+            return notas
+        except Exception as e:
+            print(f"  Error con {db_name}: {e}")
+            try:
+                client.close()
+            except Exception:
+                pass
+    print("  ERROR: No se pudo conectar a ningún cluster MongoDB")
+    return []
 # ============================================================
 # DATOS EXTERNOS
 # ============================================================
