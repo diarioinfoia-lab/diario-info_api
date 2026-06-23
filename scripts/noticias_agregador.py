@@ -401,7 +401,7 @@ def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_orig
 
         # ── Registrar imagen si existe ───────────────────────────────────────
         image_id = None
-        if imagen_url and col_files:
+        if imagen_url and col_files is not None:
             image_id = registrar_imagen_en_files(col_files, imagen_url, credito_imagen, titulo)
 
         # ── Preparar HTML del cuerpo ─────────────────────────────────────────
