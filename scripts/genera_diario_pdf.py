@@ -385,10 +385,12 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     area_top = filete_y - 1.5*mm - 4*mm
     pie_h    = 14*mm
     notas_h  = 95*mm
-    hero_w_full = W
-    hero_h   = hero_w_full * (9.0/16.0)
-    hero_bot = pie_h + notas_h
-    hero_top = hero_bot + hero_h
+    # Box imagen principal: 180mm x 95mm centrado
+    hero_w   = 180*mm
+    hero_h   = 95*mm
+    hero_x   = W/2 - hero_w/2        # centrado horizontalmente
+    # hero_top se calcula despues de dibujar la bajada (baj_y - 10mm)
+    # hero_bot se calcula desde hero_top
     if nota_p:
         titulo  = limpiar_html(nota_p.get("title", ""))
         bajada  = limpiar_html(nota_p.get("summary", "") or nota_p.get("content", ""))
@@ -410,37 +412,48 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         for bl in baj_lines:
             c.drawCentredString(W/2, baj_y, bl)
             baj_y -= 5*mm
-        # 4. IMAGEN HERO full bleed - x=0, w=W, 16:9, max(sc_w,sc_h)
-        if img_url:
-            try:
-                ir       = ImageReader(img_url)
-                inw, inh = ir.getSize()
-                sc_w  = float(hero_w_full) / inw
-                sc_h  = float(hero_h)      / inh
-                sc    = max(sc_w, sc_h)
-                dw    = inw * sc
-                dh    = inh * sc
-                off_x = (dw - hero_w_full) / 2.0
-                off_y = (dh - hero_h)      / 2.0
-                c.saveState()
-                clip = c.beginPath()
-                clip.rect(0, hero_bot, hero_w_full, hero_h)
-                c.clipPath(clip, stroke=0)
-                c.drawImage(ir, 0 - off_x, hero_bot - off_y, dw, dh)
-                c.restoreState()
-            except Exception as e:
-                print(f"  [hero] {e}")
-                c.setFillColorRGB(*GRIS_BG)
-                c.rect(0, hero_bot, hero_w_full, hero_h, fill=1, stroke=0)
-        else:
-            c.setFillColorRGB(*GRIS_BG)
-            c.rect(0, hero_bot, hero_w_full, hero_h, fill=1, stroke=0)
-    else:
-        pass    # 5. NOTAS SECUNDARIAS - 3 columnas
+                # 4. IMAGEN PRINCIPAL - box fijo 180mm x 95mm centrado
+                #    Posicion: 10mm bajo la bajada del titular
+                #    Sangrado: max(sc_w, sc_h) -> cubre todo el box sin bordes blancos
+                #    ClipPath: recorta exactamente al rectangulo del box
+                hero_top_abs = baj_y - 10*mm          # 10mm bajo la ultima linea de bajada
+                hero_bot_abs = hero_top_abs - hero_h   # hero_h = 95mm fijo
+                # Actualizar sec_y_top para que las notas secundarias arrangen bajo el box
+                sec_ref_bot  = hero_bot_abs
+                if img_url:
+                    try:
+                        ir       = ImageReader(img_url)
+                        inw, inh = ir.getSize()
+                        # Escalar con max: la imagen cubre todo el box sin dejar blancos
+                        sc_w  = float(hero_w) / inw
+                        sc_h  = float(hero_h) / inh
+                        sc    = max(sc_w, sc_h)
+                        dw    = inw * sc
+                        dh    = inh * sc
+                        # Centrar el excedente dentro del box
+                        off_x = (dw - hero_w) / 2.0
+                        off_y = (dh - hero_h) / 2.0
+                        c.saveState()
+                        clip = c.beginPath()
+                        clip.rect(hero_x, hero_bot_abs, hero_w, hero_h)
+                        c.clipPath(clip, stroke=0)
+                        c.drawImage(ir, hero_x - off_x, hero_bot_abs - off_y, dw, dh)
+                        c.restoreState()
+                    except Exception as e:
+                        print(f"  [hero] {e}")
+                        c.setFillColorRGB(*GRIS_BG)
+                        c.rect(hero_x, hero_bot_abs, hero_w, hero_h, fill=1, stroke=0)
+                        sec_ref_bot = hero_bot_abs
+                else:
+                    c.setFillColorRGB(*GRIS_BG)
+                    c.rect(hero_x, hero_bot_abs, hero_w, hero_h, fill=1, stroke=0)
+            else:
+                hero_bot_abs = pie_h + notas_h + 10*mm
+                sec_ref_bot  = hero_bot_abs    # 5. NOTAS SECUNDARIAS - 3 columnas
     notas_sec = notas[1:4]
     col_n     = 3
     col_w     = (W - 2*M) / col_n
-    sec_top   = hero_bot
+    sec_top   = sec_ref_bot   # bottom del box imagen principal
     sec_bot   = pie_h + 3*mm
     sec_h     = sec_top - sec_bot
     pad       = 3*mm
