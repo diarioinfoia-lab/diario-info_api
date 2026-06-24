@@ -444,43 +444,60 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             c.drawCentredString(W/2, baj_y, bl)
             baj_y -= 5.5*mm
 
-        # ========================================================
-        # Imagen hero 16:9, ancho completo, margen sup 10mm inf 5mm
-        # Escalar proporcionalmente a sangrado (sin deformar)
-        # ========================================================
-        hero_top  = baj_y - 10*mm
-        hero_w    = W - 2*M
-        hero_h    = hero_w * (9/16)   # proporcion 16:9
+        # ================================================================
+        # IMAGEN HERO - sangrado editorial ("escalar a sangrado")
+        # Logica: escalar al MAXIMO necesario para cubrir todo el rect.
+        # - Formato: 16:9, ancho = W - 2*M (full bleed margen a margen)
+        # - Altura fija = hero_w * 9/16  (~60% area superior)
+        # - Escalar con max(sc_w, sc_h): ninguna dimension queda corta
+        # - Centrar la imagen escalada en el rect. y recortar con clipPath
+        # - Resultado: sin bordes blancos, sin deformacion
+        # ================================================================
+        hero_top  = baj_y - 10*mm          # margen superior 10mm
+        hero_w    = W - 2*M                # full bleed margen a margen
+        hero_h    = hero_w * (9.0 / 16.0)  # proporcion 16:9
         hero_x    = M
         hero_bot  = hero_top - hero_h
 
         if img_url:
             try:
-                ir = ImageReader(img_url)
+                ir       = ImageReader(img_url)
                 inw, inh = ir.getSize()
-                # Escalar proporcional para llenar 16:9 sin deformar
-                sc_w = hero_w / inw
-                sc_h = hero_h / inh
-                sc   = max(sc_w, sc_h)   # escalar al mayor = sangrado
-                dw   = inw * sc
+                # Factor de escala para cada dimension
+                sc_w = hero_w / float(inw)   # cuanto hay que escalar para llenar el ancho
+                sc_h = hero_h / float(inh)   # cuanto hay que escalar para llenar el alto
+                # Usar el MAYOR factor: la imagen supera ambas dimensiones del rect.
+                # -> garantia de cero espacio blanco, recorte centrado
+                sc   = max(sc_w, sc_h)
+                dw   = inw * sc    # dimension escalada final
                 dh   = inh * sc
-                off_x = (dw - hero_w) / 2
-                off_y = (dh - hero_h) / 2
+                # Offset de centrado (la dimension mayor sobresale simetricamente)
+                off_x = (dw - hero_w) / 2.0
+                off_y = (dh - hero_h) / 2.0
+                # Recortar exactamente al rect. hero
                 c.saveState()
-                p = c.beginPath()
-                p.rect(hero_x, hero_bot, hero_w, hero_h)
-                c.clipPath(p, stroke=0)
-                c.drawImage(ir, hero_x - off_x, hero_bot - off_y, dw, dh)
+                clip = c.beginPath()
+                clip.rect(hero_x, hero_bot, hero_w, hero_h)
+                c.clipPath(clip, stroke=0)
+                # Dibujar centrado (desplazado negativamente por el offset)
+                c.drawImage(ir,
+                            hero_x - off_x,
+                            hero_bot - off_y,
+                            dw, dh)
                 c.restoreState()
             except Exception as e:
-                print(f"  Error imagen hero tapa: {e}")
+                print(f"  [tapa] Error imagen hero: {e}")
+                # Fallback: rect gris
                 c.setFillColorRGB(*GRIS_BG)
                 c.rect(hero_x, hero_bot, hero_w, hero_h, fill=1, stroke=0)
         else:
+            # Sin imagen: rect gris con marca
             c.setFillColorRGB(*GRIS_BG)
             c.rect(hero_x, hero_bot, hero_w, hero_h, fill=1, stroke=0)
 
         sec_y_top = hero_bot - 5*mm  # margen inferior imagen 5mm
+    else:
+        sec_y_top = filete_y - 80*mm
     else:
         sec_y_top = filete_y - 80*mm
     # ============================================================
@@ -522,34 +539,40 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         c.setLineWidth(1)
         c.line(cx + pad, cy - 6*mm, cx + col_w - pad, cy - 6*mm)
 
-        # Imagen 4:3 escalada con sangrado
+        # Imagen 4:3 escalada con sangrado (misma logica que hero)
         img_url_s  = obtener_url_imagen(ns.get("image")) if ns.get("image") else ""
         img_x_s    = cx + pad
         img_w_s    = col_w - 2*pad
-        img_h_use  = img_w_s * (3/4)
+        img_h_use  = img_w_s * (3.0 / 4.0)    # proporcion 4:3
         img_y_top  = cy - 7.5*mm
 
         if img_url_s:
             try:
-                ir_s       = ImageReader(img_url_s)
+                ir_s         = ImageReader(img_url_s)
                 inw_s, inh_s = ir_s.getSize()
-                sc_ws = img_w_s / inw_s
-                sc_hs = img_h_use / inh_s
-                sc_s  = max(sc_ws, sc_hs)
+                sc_ws = img_w_s  / float(inw_s)
+                sc_hs = img_h_use / float(inh_s)
+                sc_s  = max(sc_ws, sc_hs)   # sangrado: escalar al mayor
                 dws   = inw_s  * sc_s
                 dhs   = inh_s  * sc_s
-                ox_s  = (dws - img_w_s) / 2
-                oy_s  = (dhs - img_h_use) / 2
+                ox_s  = (dws - img_w_s)  / 2.0
+                oy_s  = (dhs - img_h_use) / 2.0
                 c.saveState()
                 ps = c.beginPath()
                 ps.rect(img_x_s, img_y_top - img_h_use, img_w_s, img_h_use)
                 c.clipPath(ps, stroke=0)
-                c.drawImage(ir_s, img_x_s - ox_s, img_y_top - img_h_use - oy_s, dws, dhs)
+                c.drawImage(ir_s,
+                            img_x_s - ox_s,
+                            img_y_top - img_h_use - oy_s,
+                            dws, dhs)
                 c.restoreState()
             except Exception as e:
-                print(f"  Error img sec {i}: {e}")
+                print(f"  [tapa] Error img sec {i}: {e}")
                 c.setFillColorRGB(*GRIS_BG)
                 c.rect(img_x_s, img_y_top - img_h_use, img_w_s, img_h_use, fill=1, stroke=0)
+        else:
+            c.setFillColorRGB(*GRIS_BG)
+            c.rect(img_x_s, img_y_top - img_h_use, img_w_s, img_h_use, fill=1, stroke=0)
         else:
             c.setFillColorRGB(*GRIS_BG)
             c.rect(img_x_s, img_y_top - img_h_use, img_w_s, img_h_use, fill=1, stroke=0)
@@ -662,44 +685,40 @@ def generar_pagina_interior(c, nota, num_pag):
         tit_y -= 5.5*mm
 
     # ============================================================
-    # IMAGEN PRINCIPAL: 16:9 o 4:3 con sangrado proporcional
-    #   max 40% del ancho si hay columnas de texto
+    # IMAGEN PRINCIPAL INTERIOR - sangrado proporcional
+    #   16:9 ancho completo, escalar con max(sc_w, sc_h)
+    #   sin deformacion, sin bordes blancos, recorte centrado
     # ============================================================
     img_top    = tit_y - 4*mm
     img_w      = W - 2*M
-    img_h_max  = img_w * (9/16)
+    img_h_max  = img_w * (9.0 / 16.0)   # proporcion 16:9
 
     if img_url:
         try:
-            ir = ImageReader(img_url)
+            ir       = ImageReader(img_url)
             inw, inh = ir.getSize()
-            sc_w = img_w  / inw
-            sc_h = img_h_max / inh
+            sc_w = img_w     / float(inw)
+            sc_h = img_h_max / float(inh)
             sc   = max(sc_w, sc_h)
             dw   = inw * sc
             dh   = inh * sc
-            # Cap: no mas de img_h_max
-            if dh > img_h_max:
-                dh = img_h_max
-                dw = img_h_max * (inw/inh)
-                if dw < img_w:
-                    dw = img_w
-                    dh = img_w * (inh/inw)
-            ox = (dw - img_w) / 2
-            oy = max(0, (dh - img_h_max) / 2)
+            off_x = (dw - img_w)     / 2.0
+            off_y = (dh - img_h_max) / 2.0
             c.saveState()
             p = c.beginPath()
             p.rect(M, img_top - img_h_max, img_w, img_h_max)
             c.clipPath(p, stroke=0)
-            c.drawImage(ir, M - ox, img_top - img_h_max - oy, dw, dh)
+            c.drawImage(ir,
+                        M - off_x,
+                        img_top - img_h_max - off_y,
+                        dw, dh)
             c.restoreState()
             cuerpo_y = img_top - img_h_max - 6*mm
         except Exception as e:
-            print(f"  Error imagen interior p{num_pag}: {e}")
+            print(f"  [interior p{num_pag}] Error imagen: {e}")
             cuerpo_y = img_top
     else:
         cuerpo_y = img_top
-
     # ============================================================
     # CUERPO: Merriweather-Regular 11pt #000000 interlineado 1.3
     #   2 columnas si el texto es largo, 1 columna si es corto
