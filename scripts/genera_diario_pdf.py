@@ -151,7 +151,7 @@ def obtener_notas(limite=15):
                 {"status": "published"},
                 {"_id":1,"title":1,"excerpt":1,"content":1,"imageId":1,
                  "slug":1,"tags":1,"category":1,"publishedAt":1,"sourceUrl":1}
-            ).sort("publishedAt", -1).limit(limite)
+            ).sort([("priority", -1), ("publishedAt", -1)]).limit(limite)
             notas = []
             for doc in cursor:
                 cat_raw = str(doc.get("category", "NOTICIAS"))
@@ -191,7 +191,7 @@ def obtener_notas(limite=15):
                 client.close()
             except Exception:
                 pass
-    print("  ERROR: No se pudo conectar a ningÃºn cluster MongoDB")
+    print("  ERROR: No se pudo conectar a ningÃÂºn cluster MongoDB")
     return []
 # ============================================================
 # DATOS EXTERNOS
@@ -270,399 +270,428 @@ def truncar(texto, max_chars):
 # GENERADOR DE TAPA (Pagina 1)
 # ============================================================
 def generar_tapa(c, notas, cotizaciones, clima):
+    """Tapa institucional fiel al diseno de referencia.
+    Estructura: barra-info | logo | linea-azul | TITULAR-GRANDE | bajada | imagen-principal | separador | 3-columnas | pie
+    """
     from reportlab.lib.units import mm
-    FONT_N = "Lato-Regular" if "Lato-Regular" in FUENTES_OK else "Helvetica"
+    FONT_N  = "Lato-Regular"  if "Lato-Regular"  in FUENTES_OK else "Helvetica"
     W = A4[0]
     H = A4[1]
-    MARGEN = 15 * mm
-    ANCHO = W - 2 * MARGEN
-    AZUL      = (0.0, 0.2, 0.4)
-    NARANJA   = (0.957, 0.486, 0.125)
-    GRIS      = (0.4, 0.4, 0.4)
-    GRIS_OSC  = (0.333, 0.333, 0.333)
-    NEGRO     = (0, 0, 0)
-    BLANCO    = (1, 1, 1)
-    GRIS_SEP  = (0.8, 0.8, 0.8)
+    M = 12 * mm       # margen exterior
+    AW = W - 2 * M   # ancho util
+
+    # ── COLORES ─────────────────────────────────────
+    AZUL    = (0.0,   0.20,  0.40)   # #003366
+    NARANJA = (0.957, 0.486, 0.125)  # #F47C20
+    GRIS    = (0.40,  0.40,  0.40)
+    GRIS_L  = (0.80,  0.80,  0.80)
+    NEGRO   = (0,     0,     0)
+    BLANCO  = (1,     1,     1)
+
+    # Fondo blanco
     c.setFillColorRGB(*BLANCO)
     c.rect(0, 0, W, H, fill=1, stroke=0)
-    y = H - MARGEN
-    # 1. CABECERA SUPERIOR
-    dol = cotizaciones.get("dolar_oficial", "Oficial: --")
+
+    y = H - 6 * mm
+
+    # ── 1. BARRA SUPERIOR INFO ────────────────────────
+    dol = cotizaciones.get("dolar_oficial", "Dolar: --")
     blu = cotizaciones.get("dolar_blue", "Blue: --")
-    rp  = cotizaciones.get("riesgo_pais", "")
-    clim_txt = clima if clima else ""
-    info_bar = HOY_LABEL + "   |   Santiago del Estero  " + clim_txt
-    if rp:
-        info_bar = info_bar + "   |   " + dol + "   " + blu + "   " + rp
-    else:
-        info_bar = info_bar + "   |   " + dol + "   " + blu
-    c.setFont(FONT_N, 7)
-    c.setFillColorRGB(*GRIS_OSC)
-    c.drawCentredString(W/2, y - 3*mm, info_bar)
-    y -= 7 * mm
-    c.setStrokeColorRGB(*GRIS_SEP)
-    c.setLineWidth(0.5)
-    c.line(MARGEN, y, W - MARGEN, y)
+    clim = clima if clima else ""
+    barra = HOY_LABEL + "   |   Santiago del Estero " + clim + "   |   " + dol + "   |   " + blu
+    c.setFont(FONT_N, 7.5)
+    c.setFillColorRGB(0.33, 0.33, 0.33)
+    c.drawCentredString(W / 2, y - 3*mm, barra)
+    y -= 8 * mm
+
+    # Linea gris bajo barra
+    c.setStrokeColorRGB(*GRIS_L)
+    c.setLineWidth(0.4)
+    c.line(M, y, W - M, y)
     y -= 4 * mm
-    # 2. LOGO INSTITUCIONAL
-    logo_base_y = y - 17*mm
-    # Icono circular azul con semicirculo naranja
-    icono_cx = W/2 - 52*mm
-    icono_cy = logo_base_y + 8*mm
-    icono_r  = 7*mm
+
+    # ── 2. LOGO ───────────────────────────────────────
+    logo_cy = y - 12 * mm
+    # Icono "play" circular: circulo degradado azul-naranja con triangulo blanco
+    R = 10 * mm
+    cx_icon = W / 2 - 48 * mm
+    # Semicirculo izq azul
     c.setFillColorRGB(*AZUL)
-    c.circle(icono_cx, icono_cy, icono_r, fill=1, stroke=0)
+    c.circle(cx_icon, logo_cy, R, fill=1, stroke=0)
+    # Semicirculo der naranja
     c.setFillColorRGB(*NARANJA)
-    c.wedge(icono_cx - icono_r, icono_cy - icono_r,
-            icono_cx + icono_r, icono_cy + icono_r,
-            0, 180, fill=1, stroke=0)
+    c.wedge(cx_icon - R, logo_cy - R, cx_icon + R, logo_cy + R, -90, 180, fill=1, stroke=0)
+    # Triangulo play blanco
+    path = c.beginPath()
+    path.moveTo(cx_icon - 3*mm, logo_cy + 5*mm)
+    path.lineTo(cx_icon - 3*mm, logo_cy - 5*mm)
+    path.lineTo(cx_icon + 5*mm, logo_cy)
+    path.close()
     c.setFillColorRGB(*BLANCO)
-    c.setFont(FONT_TB, 9)
-    c.drawCentredString(icono_cx, icono_cy - 3, "Di")
+    c.drawPath(path, fill=1, stroke=0)
+
     # Texto logo
-    txt_x = icono_cx + icono_r + 3*mm
-    c.setFont(FONT_TB, 24)
+    tx = cx_icon + R + 3 * mm
+    c.setFont(FONT_TB, 28)
     c.setFillColorRGB(*AZUL)
-    diario_w = c.stringWidth("diario", FONT_TB, 24)
-    c.drawString(txt_x, logo_base_y + 5*mm, "diario")
-    c.setFont(FONT_TB, 26)
+    dw = c.stringWidth("diario", FONT_TB, 28)
+    c.drawString(tx, logo_cy - 5*mm, "diario")
+    c.setFont(FONT_TB, 30)
     c.setFillColorRGB(*NARANJA)
-    info_w = c.stringWidth("info", FONT_TB, 26)
-    c.drawString(txt_x + diario_w, logo_base_y + 4*mm, "info")
-    c.setFont(FONT_N, 13)
+    iw = c.stringWidth("info", FONT_TB, 30)
+    c.drawString(tx + dw, logo_cy - 6*mm, "info")
+    c.setFont(FONT_N, 16)
     c.setFillColorRGB(*GRIS)
-    c.drawString(txt_x + diario_w + info_w, logo_base_y + 7*mm, ".com")
+    c.drawString(tx + dw + iw, logo_cy - 3*mm, ".com")
+
+    # Subtitulo "Santiago del Estero"
     c.setFont(FONT_N, 9)
     c.setFillColorRGB(*GRIS)
-    c.drawCentredString(W/2, logo_base_y - 2*mm, "Santiago del Estero")
-    y = logo_base_y - 6*mm
+    c.drawCentredString(W / 2, logo_cy - 8*mm, "Santiago del Estero")
+
+    y = logo_cy - 12 * mm
+
+    # Linea azul bajo logo
     c.setStrokeColorRGB(*AZUL)
-    c.setLineWidth(2)
-    c.line(MARGEN, y, W - MARGEN, y)
-    c.setLineWidth(0.5)
-    y -= 5*mm
-    # 3. NOTA PRINCIPAL (60% del espacio)
-    PIE_H = 12*mm
-    zona_total = y - MARGEN - PIE_H
-    zona_principal = zona_total * 0.60
-    zona_secundarias = zona_total * 0.40
-    y_inicio_principal = y
-    if notas:
-        nota_p = notas[0]
-        img_h = zona_principal * 0.55
-        img_y = y - img_h
-        img_url = nota_p.get("imagen_url")
-        img_path = descargar_imagen(img_url) if img_url else None
-        if img_path and os.path.exists(img_path):
-            try:
-                c.drawImage(img_path, MARGEN, img_y, ANCHO, img_h, preserveAspectRatio=True, anchor="c")
-            except Exception:
-                c.setFillColorRGB(*AZUL)
-                c.rect(MARGEN, img_y, ANCHO, img_h, fill=1, stroke=0)
+    c.setLineWidth(1.5)
+    c.line(M, y, W - M, y)
+    y -= 6 * mm
+
+    # ── 3. NOTA PRINCIPAL ─────────────────────────────
+    PIE_H = 10 * mm
+    nota_p = notas[0] if notas else {}
+
+    # Titulo principal GRANDE
+    titulo = nota_p.get("titulo", "")[:200]
+    palabras = titulo.split()
+    lineas_t = []
+    la = ""
+    for p in palabras:
+        pr = (la + " " + p).strip()
+        if c.stringWidth(pr, FONT_TB, 26) < AW:
+            la = pr
         else:
-            c.setFillColorRGB(*AZUL)
-            c.rect(MARGEN, img_y, ANCHO, img_h, fill=1, stroke=0)
-            c.setFillColorRGB(*BLANCO)
-            c.setFont(FONT_N, 9)
-            c.drawCentredString(W/2, img_y + img_h/2, "[ imagen no disponible ]")
-        y = img_y - 4*mm
-        cat = nota_p.get("categoria", "NOTICIAS").upper()
-        c.setFillColorRGB(*NARANJA)
-        c.setFont(FONT_TB, 8)
-        c.drawString(MARGEN, y, cat)
-        y -= 5*mm
-        titulo = nota_p.get("titulo", "")[:180]
-        palabras = titulo.split()
-        lineas_t = []
-        linea_act = ""
-        for p in palabras:
-            prueba = (linea_act + " " + p).strip()
-            if c.stringWidth(prueba, FONT_TB, 20) < ANCHO:
-                linea_act = prueba
-            else:
-                if linea_act:
-                    lineas_t.append(linea_act)
-                linea_act = p
-        if linea_act:
-            lineas_t.append(linea_act)
-        lineas_t = lineas_t[:3]
-        c.setFillColorRGB(*NEGRO)
-        c.setFont(FONT_TB, 20)
-        for lt in lineas_t:
-            c.drawString(MARGEN, y, lt)
-            y -= 8*mm
-        copete = nota_p.get("copete", "")[:200]
-        palabras_c = copete.split()
-        lineas_c = []
-        lc_act = ""
-        for p in palabras_c:
-            prueba = (lc_act + " " + p).strip()
-            if c.stringWidth(prueba, FONT_N, 10) < ANCHO:
-                lc_act = prueba
-            else:
-                if lc_act:
-                    lineas_c.append(lc_act)
-                lc_act = p
-        if lc_act:
-            lineas_c.append(lc_act)
-        lineas_c = lineas_c[:2]
-        c.setFillColorRGB(*GRIS_OSC)
-        c.setFont(FONT_N, 10)
-        for lc in lineas_c:
-            c.drawString(MARGEN, y, lc)
-            y -= 5*mm
-    y -= 3*mm
-    c.setStrokeColorRGB(*GRIS_SEP)
+            if la: lineas_t.append(la)
+            la = p
+    if la: lineas_t.append(la)
+    lineas_t = lineas_t[:3]
+
+    c.setFillColorRGB(*NEGRO)
+    c.setFont(FONT_TB, 26)
+    for lt in lineas_t:
+        c.drawString(M, y, lt)
+        y -= 9.5 * mm
+    y -= 1 * mm
+
+    # Bajada / copete centrado
+    copete = nota_p.get("copete", "")[:220]
+    palabras_c = copete.split()
+    lineas_cop = []
+    la_c = ""
+    for p in palabras_c:
+        pr = (la_c + " " + p).strip()
+        if c.stringWidth(pr, FONT_N, 11) < AW * 0.9:
+            la_c = pr
+        else:
+            if la_c: lineas_cop.append(la_c)
+            la_c = p
+    if la_c: lineas_cop.append(la_c)
+    lineas_cop = lineas_cop[:2]
+
+    c.setFillColorRGB(0.25, 0.25, 0.25)
+    c.setFont(FONT_N, 11)
+    for lc in lineas_cop:
+        c.drawCentredString(W / 2, y, lc)
+        y -= 5.5 * mm
+    y -= 3 * mm
+
+    # ── 4. IMAGEN PRINCIPAL (ancho completo) ──────────
+    # Calcular zona disponible para imagen + secundarias + pie
+    zona_img = (y - M - PIE_H - 50*mm) * 0.60  # 60% para imagen
+    img_h = max(zona_img, 35*mm)
+    img_y = y - img_h
+    img_url = nota_p.get("imagen_url")
+    img_path = descargar_imagen(img_url) if img_url else None
+    if img_path and os.path.exists(img_path):
+        try:
+            c.drawImage(img_path, M, img_y, AW, img_h, preserveAspectRatio=True, anchor="c")
+        except Exception:
+            c.setFillColorRGB(0.55, 0.65, 0.75)
+            c.rect(M, img_y, AW, img_h, fill=1, stroke=0)
+    else:
+        c.setFillColorRGB(0.55, 0.65, 0.75)
+        c.rect(M, img_y, AW, img_h, fill=1, stroke=0)
+    y = img_y - 4 * mm
+
+    # Linea separadora gris
+    c.setStrokeColorRGB(*GRIS_L)
     c.setLineWidth(0.5)
-    c.line(MARGEN, y, W - MARGEN, y)
-    y -= 4*mm
-    # 4. TRES NOTAS SECUNDARIAS
-    col_w = ANCHO / 3
-    n_disponibles = notas[1:4] if len(notas) >= 4 else notas[1:]
-    notas_sec = list(n_disponibles) + [{}] * (3 - len(n_disponibles))
-    y_sec_top = y
-    y_sec_bot = MARGEN + PIE_H + 3*mm
-    zona_sec  = y_sec_top - y_sec_bot
-    img_sec_h = zona_sec * 0.42
-    etiquetas = ["POLICIALES", "DEPORTES", "POLITICA"]
-    for i, nota_s in enumerate(notas_sec):
-        col_x = MARGEN + i * col_w
-        cy    = y_sec_top
+    c.line(M, y, W - M, y)
+    y -= 3 * mm
+
+    # ── 5. TRES COLUMNAS SECUNDARIAS ──────────────────
+    cw = AW / 3
+    notas_s = list(notas[1:4]) + [{}] * max(0, 3 - len(notas[1:4]))
+    y_bot = M + PIE_H + 2*mm
+    zona_s = y - y_bot
+    img_sh = zona_s * 0.46
+
+    for i, ns in enumerate(notas_s):
+        cx = M + i * cw
+        cy = y
+        # separador vertical
         if i > 0:
-            c.setStrokeColorRGB(*GRIS_SEP)
-            c.setLineWidth(0.5)
-            c.line(col_x, y_sec_top + 1*mm, col_x, y_sec_bot)
-        if not nota_s:
-            continue
-        img_url_s = nota_s.get("imagen_url")
-        img_path_s = descargar_imagen(img_url_s) if img_url_s else None
-        if img_path_s and os.path.exists(img_path_s):
-            try:
-                c.drawImage(img_path_s, col_x + 2*mm, cy - img_sec_h,
-                            col_w - 4*mm, img_sec_h,
-                            preserveAspectRatio=True, anchor="c")
-            except Exception:
-                c.setFillColorRGB(0.85, 0.85, 0.85)
-                c.rect(col_x + 2*mm, cy - img_sec_h, col_w - 4*mm, img_sec_h, fill=1, stroke=0)
-        else:
-            c.setFillColorRGB(0.85, 0.85, 0.85)
-            c.rect(col_x + 2*mm, cy - img_sec_h, col_w - 4*mm, img_sec_h, fill=1, stroke=0)
-        cy -= img_sec_h + 3*mm
-        etiq = etiquetas[i] if i < len(etiquetas) else nota_s.get("categoria","NOTICIAS").upper()
+            c.setStrokeColorRGB(*GRIS_L)
+            c.setLineWidth(0.4)
+            c.line(cx, y + 1*mm, cx, y_bot)
+
+        if not ns: continue
+
+        tit_s = ns.get("titulo", "")[:100]
+        cop_s = ns.get("copete", "")[:120]
+        img_us = ns.get("imagen_url")
+
+        # Titulo de seccion (categoria) en azul/naranja
+        cat_s = ns.get("categoria", "NOTICIAS")[:20].upper()
         c.setFont(FONT_TB, 8)
         c.setFillColorRGB(*AZUL)
-        c.drawString(col_x + 2*mm, cy, etiq)
-        cy -= 4.5*mm
-        tit_s = nota_s.get("titulo", "")[:100]
-        palabras_s = tit_s.split()
-        lineas_s = []
-        ls_act = ""
-        col_inner = col_w - 6*mm
-        for p in palabras_s:
-            prueba = (ls_act + " " + p).strip()
-            if c.stringWidth(prueba, FONT_TB, 11) < col_inner:
-                ls_act = prueba
+        c.drawString(cx + 2*mm, cy, cat_s)
+        cy -= 4.5 * mm
+
+        # Titular bold col
+        pals = tit_s.split()
+        lins = []
+        la_s = ""
+        inner = cw - 5*mm
+        for p in pals:
+            pr = (la_s + " " + p).strip()
+            if c.stringWidth(pr, FONT_TB, 11) < inner:
+                la_s = pr
             else:
-                if ls_act:
-                    lineas_s.append(ls_act)
-                ls_act = p
-        if ls_act:
-            lineas_s.append(ls_act)
-        lineas_s = lineas_s[:3]
+                if la_s: lins.append(la_s)
+                la_s = p
+        if la_s: lins.append(la_s)
+        lins = lins[:3]
         c.setFont(FONT_TB, 11)
         c.setFillColorRGB(*NEGRO)
-        for ls in lineas_s:
-            c.drawString(col_x + 2*mm, cy, ls)
-            cy -= 5*mm
-        cop_s = nota_s.get("copete", "")[:130]
-        palabras_cs = cop_s.split()
-        lineas_cs = []
-        lcs_act = ""
-        for p in palabras_cs:
-            prueba = (lcs_act + " " + p).strip()
-            if c.stringWidth(prueba, FONT_N, 8.5) < col_inner:
-                lcs_act = prueba
+        for ls in lins:
+            c.drawString(cx + 2*mm, cy, ls)
+            cy -= 4.8 * mm
+        cy -= 1 * mm
+
+        # Bajada gris pequeña
+        palsc = cop_s.split()
+        linsc = []
+        la_sc = ""
+        for p in palsc:
+            pr = (la_sc + " " + p).strip()
+            if c.stringWidth(pr, FONT_N, 8) < inner:
+                la_sc = pr
             else:
-                if lcs_act:
-                    lineas_cs.append(lcs_act)
-                lcs_act = p
-        if lcs_act:
-            lineas_cs.append(lcs_act)
-        lineas_cs = lineas_cs[:3]
-        c.setFont(FONT_N, 8.5)
+                if la_sc: linsc.append(la_sc)
+                la_sc = p
+        if la_sc: linsc.append(la_sc)
+        linsc = linsc[:2]
+        c.setFont(FONT_N, 8)
         c.setFillColorRGB(*GRIS)
-        for lcs in lineas_cs:
-            c.drawString(col_x + 2*mm, cy, lcs)
-            cy -= 4*mm
-    # 5. PIE DE PAGINA
-    pie_y = MARGEN + 1.5*mm
-    c.setStrokeColorRGB(*GRIS_SEP)
-    c.setLineWidth(0.5)
-    c.line(MARGEN, pie_y + 5*mm, W - MARGEN, pie_y + 5*mm)
+        for lsc in linsc:
+            c.drawString(cx + 2*mm, cy, lsc)
+            cy -= 4 * mm
+        cy -= 2 * mm
+
+        # Imagen al fondo de la columna
+        img_ps = descargar_imagen(img_us) if img_us else None
+        avail = cy - y_bot - 1*mm
+        if avail > 8*mm:
+            if img_ps and os.path.exists(img_ps):
+                try:
+                    c.drawImage(img_ps, cx + 2*mm, cy - avail, cw - 4*mm, avail, preserveAspectRatio=True, anchor="c")
+                except Exception:
+                    c.setFillColorRGB(0.75, 0.75, 0.75)
+                    c.rect(cx + 2*mm, cy - avail, cw - 4*mm, avail, fill=1, stroke=0)
+            else:
+                c.setFillColorRGB(0.75, 0.75, 0.75)
+                c.rect(cx + 2*mm, cy - avail, cw - 4*mm, avail, fill=1, stroke=0)
+
+    # ── 6. PIE DE PAGINA ──────────────────────────────
+    pie_y = M + 1.5*mm
+    c.setStrokeColorRGB(*GRIS_L)
+    c.setLineWidth(0.4)
+    c.line(M, pie_y + 5*mm, W - M, pie_y + 5*mm)
     c.setFont(FONT_N, 8)
-    c.setFillColorRGB(*GRIS_OSC)
-    c.drawString(MARGEN, pie_y, "www.diarioinfo.com.ar")
-    c.drawRightString(W - MARGEN, pie_y, "Edicion Impresa  •  Santiago del Estero")
+    c.setFillColorRGB(0.33, 0.33, 0.33)
+    c.drawString(M, pie_y + 1*mm, "www.diarioinfo.com.ar")
+    c.drawRightString(W - M, pie_y + 1*mm, "Edicion Impresa  •  Santiago del Estero")
     c.showPage()
 def generar_pagina_interior(c, nota, num_pagina):
-    """Genera una pagina interior con cabecera, cuerpo a 2 columnas, imagen y pie"""
-    w, h = PAGE_W, PAGE_H
-    # --- CABECERA ---
-    c.setFillColorRGB(*[x/255 for x in COLOR_AZUL])
-    c.rect(0, h - 20*mm, w, 20*mm, fill=1, stroke=0)
-    # Logo pequeno
-    if os.path.exists(LOGO_PATH):
-        try:
-            c.drawImage(LOGO_PATH, MARGIN, h - 18*mm, width=35*mm, height=14*mm,
-                       preserveAspectRatio=True, mask="auto")
-        except Exception:
-            pass
-    else:
-        c.setFillColorRGB(1,1,1)
-        c.setFont(FONT_H, 14)
-        c.drawString(MARGIN, h - 13*mm, NOMBRE_DIARIO.upper())
-    c.setFillColorRGB(1,1,1)
-    c.setFont(FONT_T, 8)
-    c.drawRightString(w - MARGIN, h - 10*mm, HOY_LABEL.title())
-    c.drawRightString(w - MARGIN, h - 16*mm, LEMA.upper())
-    # --- LINEA ROJA BAJO CABECERA ---
-    c.setStrokeColorRGB(*[x/255 for x in COLOR_ROJO])
-    c.setLineWidth(2)
-    c.line(0, h - 20*mm, w, h - 20*mm)
-    # --- CATEGORIA / SECCION ---
-    cat = str(nota.get("categoria","General")).upper()
-    c.setFillColorRGB(*[x/255 for x in COLOR_ROJO])
-    c.setFont(FONT_TB, 9)
-    c.drawString(MARGIN, h - 25*mm, f"SECCION: {cat}")
-    # --- TITULO PRINCIPAL ---
-    c.setFillColorRGB(0,0,0)
-    c.setFont(FONT_H, 20)
-    titulo = limpiar_html(nota.get("titulo","Sin titulo"))
-    palabras = titulo.split()
-    linea = ""
-    lineas_t = []
-    for p in palabras:
-        if len(linea)+len(p)+1 <= 58:
-            linea = (linea+" "+p).strip()
-        else:
-            lineas_t.append(linea)
-            linea = p
-    if linea: lineas_t.append(linea)
-    y_tit = h - 30*mm
-    for i, ln in enumerate(lineas_t[:3]):
-        c.drawString(MARGIN, y_tit - i*10*mm, ln)
-    y_pos = y_tit - len(lineas_t[:3])*10*mm - 3*mm
-    # --- SUBTITULO / COPETE ---
-    copete = limpiar_html(nota.get("copete",""))
-    if copete:
-        c.setFont(FONT_H2, 13)
-        c.setFillColorRGB(*[x/255 for x in COLOR_GRIS])
-        pals = copete.split()
-        lin = ""
-        lins = []
-        for p in pals:
-            if len(lin)+len(p)+1 <= 72:
-                lin = (lin+" "+p).strip()
-            else:
-                lins.append(lin)
-                lin = p
-        if lin: lins.append(lin)
-        for i, ln in enumerate(lins[:2]):
-            c.drawString(MARGIN, y_pos - i*7*mm, ln)
-        y_pos -= len(lins[:2])*7*mm + 4*mm
-    # Linea separadora
-    c.setStrokeColorRGB(*[x/255 for x in COLOR_AZUL])
-    c.setLineWidth(1)
-    c.line(MARGIN, y_pos - 1*mm, w-MARGIN, y_pos - 1*mm)
-    y_pos -= 4*mm
-    # --- IMAGEN DE LA NOTA ---
-    img_h = 55*mm
-    img_w = w - 2*MARGIN
-    y_img = y_pos - img_h
-    if nota.get("imagen_url"):
-        img = descargar_imagen(nota["imagen_url"], int(img_w*3.78), int(img_h*3.78))
-        if img:
-            ir = pil_to_imagereader(img)
-            c.drawImage(ir, MARGIN, y_img, width=img_w, height=img_h,
-                       preserveAspectRatio=True, mask="auto")
-        else:
-            c.setFillColorRGB(*[x/255 for x in COLOR_AZUL])
-            c.rect(MARGIN, y_img, img_w, img_h, fill=1, stroke=0)
-            c.setFillColorRGB(1,1,1)
-            c.setFont(FONT_T, 9)
-            c.drawCentredString(w/2, y_img + img_h/2, "IMAGEN NO DISPONIBLE")
-    else:
-        img_h = 0
-    # Credito de imagen
-    if nota.get("imagen_credito") and img_h > 0:
-        c.setFillColorRGB(*[x/255 for x in COLOR_GRIS])
-        c.setFont(FONT_T, 7)
-        c.drawRightString(w-MARGIN, y_img - 2.5*mm, f"Imagen: {nota[chr(105)+chr(109)+chr(97)+chr(103)+chr(101)+chr(110)+chr(95)+chr(99)+chr(114)+chr(101)+chr(100)+chr(105)+chr(116)+chr(111)]}")
-    y_pos = y_img - (5*mm if img_h > 0 else 0)
-    # --- CUERPO DEL TEXTO EN 2 COLUMNAS ---
-    content_h = y_pos - MARGIN - 18*mm  # espacio disponible
-    col_w = (w - 2*MARGIN - 6*mm) / 2
-    col1_x = MARGIN
-    col2_x = MARGIN + col_w + 6*mm
-    # Texto del cuerpo
-    cuerpo = limpiar_html(nota.get("cuerpo",""))
-    if not cuerpo:
-        cuerpo = limpiar_html(nota.get("copete",""))
-    if not cuerpo:
-        cuerpo = "Contenido no disponible."
-    # Dividir en parrafos
-    parrafos = [p.strip() for p in cuerpo.split("\n") if p.strip()]
-    if not parrafos:
-        parrafos = [cuerpo]
-    # Renderizar texto columna a columna
-    c.setFont(FONT_T, 9.5)
-    c.setFillColorRGB(0.1, 0.1, 0.1)
-    line_h = 4.8*mm
-    max_lines_col = int(content_h / line_h)
-    # Generar todas las lineas
-    all_lines = []
-    for par in parrafos:
-        words = par.split()
-        cur = ""
-        for w2 in words:
-            if len(cur)+len(w2)+1 <= 45:
-                cur = (cur+" "+w2).strip()
-            else:
-                all_lines.append(cur)
-                cur = w2
-        if cur:
-            all_lines.append(cur)
-        all_lines.append("")  # linea vacia entre parrafos
-    # Col 1
-    lines1 = all_lines[:max_lines_col]
-    lines2 = all_lines[max_lines_col:max_lines_col*2]
-    for i, ln in enumerate(lines1):
-        c.drawString(col1_x, y_pos - (i+1)*line_h, ln)
-    for i, ln in enumerate(lines2):
-        c.drawString(col2_x, y_pos - (i+1)*line_h, ln)
-    # Linea divisoria entre columnas
-    c.setStrokeColorRGB(*[x/255 for x in COLOR_GRIS])
-    c.setLineWidth(0.5)
-    c.line(col1_x+col_w+3*mm, y_pos, col1_x+col_w+3*mm, y_pos - content_h)
-    # --- ESPACIO PUBLICITARIO (si hay espacio) ---
-    y_pub = MARGIN + 10*mm
-    if y_pos - content_h > y_pub + 20*mm:
-        c.setFillColorRGB(0.93, 0.93, 0.93)
-        c.rect(MARGIN, y_pub, w - 2*MARGIN, 14*mm, fill=1, stroke=0)
-        c.setFillColorRGB(*[x/255 for x in COLOR_GRIS])
-        c.setFont(FONT_T, 8)
-        c.drawCentredString(w/2, y_pub + 5*mm, "ESPACIO PUBLICITARIO")
-    # --- PIE DE PAGINA ---
-    c.setFillColorRGB(*[x/255 for x in COLOR_AZUL])
-    c.rect(0, 0, w, 10*mm, fill=1, stroke=0)
-    c.setFillColorRGB(1,1,1)
-    c.setFont(FONT_T, 8)
-    c.drawString(MARGIN, 3.5*mm, f"{SITE_URL} | @diarioinfo | Edicion Impresa {HOY_LABEL.title()}")
-    c.drawRightString(w-MARGIN, 3.5*mm, f"Pagina {num_pagina}")
+    """Pagina interior: cabecera azul con logo, seccion, titulo, imagen, dos columnas, pie."""
+    from reportlab.lib.units import mm
+    FONT_N = "Lato-Regular" if "Lato-Regular" in FUENTES_OK else "Helvetica"
+    W, H = A4
+    M = 12 * mm
+    AW = W - 2 * M
+    AZUL    = (0.0,   0.20,  0.40)
+    NARANJA = (0.957, 0.486, 0.125)
+    GRIS    = (0.40,  0.40,  0.40)
+    GRIS_L  = (0.80,  0.80,  0.80)
+    NEGRO   = (0,     0,     0)
+    BLANCO  = (1,     1,     1)
 
-# ============================================================
-# FUNCION PRINCIPAL - Genera el PDF
-# ============================================================
+    c.setFillColorRGB(*BLANCO)
+    c.rect(0, 0, W, H, fill=1, stroke=0)
+
+    # ── CABECERA AZUL ─────────────────────────────────
+    CAB_H = 14 * mm
+    c.setFillColorRGB(*AZUL)
+    c.rect(0, H - CAB_H, W, CAB_H, fill=1, stroke=0)
+
+    # Logo mini en la cabecera
+    c.setFont(FONT_TB, 13)
+    c.setFillColorRGB(*BLANCO)
+    logo_x = M
+    c.drawString(logo_x, H - CAB_H + 4*mm, "diario")
+    dw = c.stringWidth("diario", FONT_TB, 13)
+    c.setFillColorRGB(*NARANJA)
+    c.drawString(logo_x + dw, H - CAB_H + 4*mm, "info")
+    iw = c.stringWidth("info", FONT_TB, 13)
+    c.setFont(FONT_N, 9)
+    c.setFillColorRGB(*BLANCO)
+    c.drawString(logo_x + dw + iw, H - CAB_H + 5*mm, ".com")
+
+    # Fecha en cabecera derecha
+    c.setFont(FONT_N, 8)
+    c.setFillColorRGB(*BLANCO)
+    c.drawRightString(W - M, H - CAB_H + 4.5*mm, HOY_LABEL)
+
+    y = H - CAB_H - 5 * mm
+
+    # ── SECCION / CATEGORIA ───────────────────────────
+    cat = nota.get("categoria", "NOTICIAS")[:25].upper()
+    c.setFont(FONT_TB, 9)
+    c.setFillColorRGB(*NARANJA)
+    c.drawString(M, y, cat)
+    y -= 6 * mm
+
+    # ── TITULO PRINCIPAL ──────────────────────────────
+    titulo = nota.get("titulo", "")[:200]
+    palabras = titulo.split()
+    lineas_t = []
+    la = ""
+    for p in palabras:
+        pr = (la + " " + p).strip()
+        if c.stringWidth(pr, FONT_TB, 20) < AW:
+            la = pr
+        else:
+            if la: lineas_t.append(la)
+            la = p
+    if la: lineas_t.append(la)
+    lineas_t = lineas_t[:3]
+
+    c.setFont(FONT_TB, 20)
+    c.setFillColorRGB(*NEGRO)
+    for lt in lineas_t:
+        c.drawString(M, y, lt)
+        y -= 7.5 * mm
+    y -= 2 * mm
+
+    # ── BAJADA / COPETE ───────────────────────────────
+    copete = nota.get("copete", "")[:300]
+    palabras_c = copete.split()
+    lineas_cop = []
+    la_c = ""
+    for p in palabras_c:
+        pr = (la_c + " " + p).strip()
+        if c.stringWidth(pr, FONT_N, 11) < AW:
+            la_c = pr
+        else:
+            if la_c: lineas_cop.append(la_c)
+            la_c = p
+    if la_c: lineas_cop.append(la_c)
+    lineas_cop = lineas_cop[:2]
+
+    c.setFont(FONT_N, 11)
+    c.setFillColorRGB(*GRIS)
+    for lc in lineas_cop:
+        c.drawString(M, y, lc)
+        y -= 5.5 * mm
+    y -= 3 * mm
+
+    # ── IMAGEN ────────────────────────────────────────
+    img_h = min(55 * mm, (y - M - 12*mm) * 0.42)
+    img_url = nota.get("imagen_url")
+    img_path = descargar_imagen(img_url) if img_url else None
+    if img_h > 15*mm:
+        if img_path and os.path.exists(img_path):
+            try:
+                c.drawImage(img_path, M, y - img_h, AW * 0.60, img_h, preserveAspectRatio=True, anchor="c")
+            except Exception:
+                c.setFillColorRGB(0.75, 0.75, 0.75)
+                c.rect(M, y - img_h, AW * 0.60, img_h, fill=1, stroke=0)
+        else:
+            c.setFillColorRGB(0.78, 0.82, 0.88)
+            c.rect(M, y - img_h, AW * 0.60, img_h, fill=1, stroke=0)
+    y -= (img_h + 4*mm)
+
+    # ── LINEA DIVISORIA ───────────────────────────────
+    c.setStrokeColorRGB(*GRIS_L)
+    c.setLineWidth(0.4)
+    c.line(M, y, W - M, y)
+    y -= 4 * mm
+
+    # ── CUERPO EN DOS COLUMNAS ────────────────────────
+    cuerpo = nota.get("cuerpo", "") or nota.get("copete", "")
+    # Limpiar HTML basico
+    import re
+    cuerpo = re.sub(r"<[^>]+>", " ", cuerpo)
+    cuerpo = re.sub(r"\s+", " ", cuerpo).strip()
+    cuerpo = cuerpo[:2000]
+
+    col_w  = AW / 2 - 3*mm
+    col_gap = 6 * mm
+    col_x  = [M, M + AW / 2 + col_gap / 2]
+    y_bot  = M + 12*mm
+    zona   = y - y_bot
+    if zona < 10*mm:
+        zona = 10*mm
+    lh = 4.5 * mm
+    max_lineas = int(zona / lh) * 2
+
+    palabras_b = cuerpo.split()
+    lineas_b = []
+    la_b = ""
+    for p in palabras_b:
+        pr = (la_b + " " + p).strip()
+        if c.stringWidth(pr, FONT_N, 9.5) < col_w:
+            la_b = pr
+        else:
+            if la_b: lineas_b.append(la_b)
+            la_b = p
+    if la_b: lineas_b.append(la_b)
+    lineas_b = lineas_b[:max_lineas]
+
+    col_lineas = int(len(lineas_b) / 2) + 1
+    c.setFont(FONT_N, 9.5)
+    c.setFillColorRGB(*NEGRO)
+    for col_i in range(2):
+        cy = y
+        start = col_i * col_lineas
+        end   = start + col_lineas
+        for lb in lineas_b[start:end]:
+            if cy < y_bot: break
+            c.drawString(col_x[col_i], cy, lb)
+            cy -= lh
+
+    # ── PIE DE PAGINA ─────────────────────────────────
+    pie_y = M + 1.5*mm
+    c.setStrokeColorRGB(*GRIS_L)
+    c.setLineWidth(0.4)
+    c.line(M, pie_y + 5*mm, W - M, pie_y + 5*mm)
+    c.setFont(FONT_N, 7.5)
+    c.setFillColorRGB(*GRIS)
+    c.drawString(M, pie_y + 1*mm, "www.diarioinfo.com.ar")
+    c.drawCentredString(W / 2, pie_y + 1*mm, "diarioinfo.com  |  Informacion Inteligente")
+    c.drawRightString(W - M, pie_y + 1*mm, "Pagina " + str(num_pagina))
+    c.showPage()
 def generar_pdf():
     # Crear directorios necesarios
     for d in [OUTPUT_DIR, ASSETS_DIR, PLANTILLAS_DIR, FLIPBOOK_DIR]:
