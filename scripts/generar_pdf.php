@@ -1,74 +1,57 @@
 <?php
-// generar_pdf.php - Trigger manual de generacion del diario
-// Subir a: /home/diarioin/public_html/generar_pdf.php
-// Acceso:  https://diarioinfo.com/generar_pdf.php?secret=diarioinfo-pdf-2024
-
+// generar_pdf.php - con diagnostico completo
 define('SECRET', 'diarioinfo-pdf-2024');
-define('SCRIPT', '/home/diarioin/scripts/genera_diario_pdf.py');
-define('PYTHON', '/usr/bin/python3');
-define('LOG',    '/home/diarioin/logs/genera_pdf.log');
 
 header('Content-Type: text/html; charset=utf-8');
-
-// Verificar secret - compatible PHP 5
 $secret = isset($_GET['secret']) ? $_GET['secret'] : '';
 if ($secret !== SECRET) {
     http_response_code(401);
-    echo '<h2 style="font-family:sans-serif;color:red">No autorizado</h2>';
-    exit;
+    echo '<h2 style="font-family:sans-serif;color:red">No autorizado</h2>'; exit;
 }
 
-// Verificar que el script existe
-if (!file_exists(SCRIPT)) {
-    http_response_code(500);
-    echo '<h2 style="font-family:sans-serif;color:red">Error: script no encontrado en ' . SCRIPT . '</h2>';
-    exit;
+// --- DIAGNOSTICO ---
+$python_paths = array('/usr/bin/python3','/usr/local/bin/python3','/usr/bin/python','/usr/local/bin/python');
+$script_paths = array(
+    '/home/diarioin/scripts/genera_diario_pdf.py',
+    '/home/diarioin/public_html/scripts/genera_diario_pdf.py'
+);
+
+$python_ok = '';
+foreach ($python_paths as $p) {
+    if (file_exists($p)) { $python_ok = $p; break; }
 }
 
-// Crear directorio de logs si no existe
-$log_dir = dirname(LOG);
-if (!is_dir($log_dir)) {
-    mkdir($log_dir, 0755, true);
+$script_ok = '';
+foreach ($script_paths as $s) {
+    if (file_exists($s)) { $script_ok = $s; break; }
 }
 
-// Ejecutar en background
-$cmd = PYTHON . ' ' . SCRIPT . ' >> ' . LOG . ' 2>&1 &';
+$shell_ok = function_exists('shell_exec') && !in_array('shell_exec', array_map('trim', explode(',', ini_get('disable_functions'))));
+
+echo '<style>body{font-family:monospace;padding:20px} .ok{color:green} .err{color:red}</style>';
+echo '<h2>Diagnostico</h2>';
+echo '<b>shell_exec:</b> ' . ($shell_ok ? '<span class=ok>OK</span>' : '<span class=err>DESHABILITADO</span>') . '<br>';
+echo '<b>Python:</b> ' . ($python_ok ? '<span class=ok>'.$python_ok.'</span>' : '<span class=err>NO ENCONTRADO</span>') . '<br>';
+echo '<b>Script:</b> ' . ($script_ok ? '<span class=ok>'.$script_ok.'</span>' : '<span class=err>NO ENCONTRADO</span>') . '<br>';
+
+// Mostrar directorio home real
+$whoami = shell_exec('whoami');
+$home   = shell_exec('echo $HOME');
+$ls     = shell_exec('ls /home/');
+echo '<b>whoami:</b> ' . htmlspecialchars(trim($whoami)) . '<br>';
+echo '<b>HOME:</b> ' . htmlspecialchars(trim($home)) . '<br>';
+echo '<b>ls /home/:</b> ' . htmlspecialchars(trim($ls)) . '<br>';
+
+if (!$shell_ok) { echo '<p class=err>shell_exec deshabilitado. No se puede correr Python desde PHP.</p>'; exit; }
+if (!$python_ok) { echo '<p class=err>Python no encontrado. Revisa rutas.</p>'; exit; }
+if (!$script_ok) { echo '<p class=err>Script Python no encontrado. Revisa ruta.</p>'; exit; }
+
+// --- EJECUTAR ---
+$log = '/home/diarioin/logs/genera_pdf.log';
+$log_dir = dirname($log);
+if (!is_dir($log_dir)) mkdir($log_dir, 0755, true);
+$cmd = $python_ok . ' ' . $script_ok . ' > ' . $log . ' 2>&1 &';
 shell_exec($cmd);
-
-// Respuesta HTML
+echo '<p class=ok><b>Script lanzado!</b><br>Comando: ' . htmlspecialchars($cmd) . '</p>';
+echo '<p>Revisa el log en: ' . $log . '</p>';
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset='utf-8'>
-  <meta name='viewport' content='width=device-width, initial-scale=1'>
-  <title>DiarioInfo - Generar PDF</title>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 60px 20px; background: #f0f4ff; }
-    .card { background: white; border-radius: 12px; padding: 40px; max-width: 500px;
-            margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,.1); }
-    h1 { color: #003399; margin-bottom: 10px; }
-    p  { color: #444; line-height: 1.6; }
-    .btn { display: inline-block; margin-top: 20px; padding: 12px 24px;
-           background: #003399; color: white; border-radius: 8px;
-           text-decoration: none; font-weight: bold; }
-    .btn:hover { background: #002277; }
-    .info { background: #eef2ff; border-radius: 8px; padding: 12px;
-            font-size: 13px; color: #555; margin-top: 20px; }
-  </style>
-</head>
-<body>
-  <div class='card'>
-    <h1>&#x2705; Generacion iniciada</h1>
-    <p>El script esta corriendo en el servidor.<br>
-       El PDF del diario estara listo en <strong>2-5 minutos</strong>.</p>
-    <a class='btn' href='https://diarioinfo.com/revistas/diarioinfo/' target='_blank'>
-      Ver diario publicado
-    </a>
-    <div class='info'>
-      Hora de inicio: <?php echo date('d/m/Y H:i:s'); ?><br>
-      Log: <?php echo LOG; ?>
-    </div>
-  </div>
-</body>
-</html>
