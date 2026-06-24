@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Diario Info - Generador de PDF Edicion Impresa v1.6
+Diario Info - Generador de PDF Edicion Impresa v2.0
 Correcciones: lookup de categorias, URLs de imagenes correctas, clima en Celsius
 """
 
@@ -314,121 +314,233 @@ def obtener_clima():
 
 # ── TAPA ─────────────────────────────────────────────────────────────────────────
 def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
-    fn  = "Lato-Regular" if "Lato-Regular" in FUENTES_OK else "Helvetica"
-    ftb = "Lato-Bold"    if "Lato-Bold"    in FUENTES_OK else "Helvetica-Bold"
-    
+    fn  = 'Lato-Regular' if 'Lato-Regular' in FUENTES_OK else 'Helvetica'
+    ftb = 'Lato-Bold'    if 'Lato-Bold'    in FUENTES_OK else 'Helvetica-Bold'
+    fti = 'Lato-Italic'  if 'Lato-Italic'  in FUENTES_OK else 'Helvetica-Oblique'
     W, H = A4
-    M = 10 * mm
-    AW = W - 2*M   # ancho util
-    
-    DIAS   = ["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"]
-    MESES  = ["enero","febrero","marzo","abril","mayo","junio",
-               "julio","agosto","septiembre","octubre","noviembre","diciembre"]
-    fecha_txt = f"{DIAS[HOY.weekday()]} {HOY.day} de {MESES[HOY.month-1]} de {HOY.year}"
-    
-    # Fondo blanco
-    c.setFillColorRGB(*BLANCO); c.rect(0, 0, W, H, fill=1, stroke=0)
-    
-    y = H - M
-    
-    # ── 1. Barra informativa ─────────────────────────────────────────────────────
-    info = f"{fecha_txt}  |  {clima}  |  {cotiz_of}  |  {cotiz_bl}"
-    c.setFont(fn, 7.5); c.setFillColorRGB(*GRIS)
-    c.drawCentredString(W/2, y - 8, info)
-    y -= 14
-    c.setStrokeColorRGB(*GRIS_L); c.setLineWidth(0.4)
-    c.line(M, y, W-M, y); y -= 2
-    
-    # ── 2. Logo centrado ─────────────────────────────────────────────────────────
-    logo_h = 36
-    logo_cy = y - logo_h/2 - 2
-    # Estimar ancho del logo para centrarlo
-    r_icon = 17
-    txt_w = (c.stringWidth("diario", ftb, 26) + c.stringWidth("info", ftb, 28) + 
-             c.stringWidth(".com", fn, 13) + 3)
-    logo_total = r_icon * 2 + txt_w
-    logo_icon_x = W/2 - logo_total/2 + r_icon
-    
-    draw_logo(c, logo_icon_x, logo_cy, r=r_icon)
-    
-    # Subtitulo bajo logo
-    sub_y = logo_cy - r_icon - 3
-    c.setFont(fn, 8.5); c.setFillColorRGB(*GRIS)
-    c.drawCentredString(W/2, sub_y, "Santiago del Estero")
-    
-    y = sub_y - 6
-    
-    # Linea azul
-    c.setStrokeColorRGB(*AZUL); c.setLineWidth(1.5)
-    c.line(M, y, W-M, y); y -= 8
-    
-    # ── 3. Nota principal ────────────────────────────────────────────────────────
-    n0 = notas[0] if notas else {}
-    
-    # Titular
-    y = draw_text_center(c, n0.get("title",""), W/2, y, AW - 10*mm, ftb, 26, NEGRO, max_lineas=3, lh=31)
-    y -= 5
-    
-    # Bajada
-    exc0 = n0.get("excerpt","")[:220]
-    if exc0:
-        y = draw_text_center(c, exc0, W/2, y, AW - 18*mm, fn, 10.5, GRIS, max_lineas=2, lh=14)
-        y -= 7
-    
-    # Imagen principal
-    img_h = min(66*mm, max(35*mm, y - 58*mm))
-    img_y = y - img_h
-    draw_image(c, n0.get("img_url"), M, img_y, AW, img_h)
-    y = img_y - 5
-    
-    # Linea gris
-    c.setStrokeColorRGB(*GRIS_L); c.setLineWidth(0.5)
-    c.line(M, y, W-M, y); y -= 5
-    
-    # ── 4. Columnas secundarias ──────────────────────────────────────────────────
-    zona_h = y - (10*mm + 8)
-    sep = 4     # separador entre columnas
-    col_w = (AW - 2*sep) / 3
-    
-    for i in range(3):
-        n_col = notas[i+1] if len(notas) > i+1 else {}
-        cx = M + i * (col_w + sep)
-        cy = y
-        
-        # Separador vertical
-        if i > 0:
-            c.setStrokeColorRGB(*GRIS_L); c.setLineWidth(0.4)
-            c.line(cx - sep/2, y, cx - sep/2, y - zona_h + 2)
-        
-        # Categoria
-        cat = n_col.get("category", "")
-        c.setFont(ftb, 8); c.setFillColorRGB(*AZUL)
-        c.drawString(cx + 2, cy - 10, cat[:18])
-        cy -= 14
-        
-        # Titulo
-        cy = draw_text_left(c, n_col.get("title",""), cx+2, cy, col_w-4, ftb, 10.5, NEGRO, max_lineas=3, lh=13)
-        cy -= 4
-        
-        # Bajada
-        cy = draw_text_left(c, n_col.get("excerpt","")[:160], cx+2, cy, col_w-4, fn, 8, GRIS_C, max_lineas=2, lh=11)
-        cy -= 4
-        
-        # Imagen de columna
-        img_col_y_base = 10*mm + 8
-        img_col_h = cy - img_col_y_base - 3
-        if img_col_h > 15:
-            draw_image(c, n_col.get("img_url"), cx+2, img_col_y_base, col_w-4, img_col_h)
-    
-    # ── 5. Pie ───────────────────────────────────────────────────────────────────
-    pie_y = 10*mm
-    c.setStrokeColorRGB(*GRIS_L); c.setLineWidth(0.4)
-    c.line(M, pie_y, W-M, pie_y)
-    c.setFont(fn, 8); c.setFillColorRGB(*GRIS)
-    c.drawString(M, pie_y - 8, "www.diarioinfo.com.ar")
-    c.drawRightString(W-M, pie_y - 8, "Edicion Impresa  •  Santiago del Estero")
+    M = 12*mm
 
-# ── Paginas interiores ──────────────────────────────────────────────────────────
+    # ── Fondo blanco ────────────────────────────────────────────────
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(0, 0, W, H, fill=1, stroke=0)
+
+    # ── CABECERA: linea superior con fecha, ciudad, cotizaciones ────
+    cab_y = H - 10*mm
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(0, cab_y, W, 10*mm, fill=1, stroke=0)
+    c.setStrokeColorRGB(*GRIS_L)
+    c.setLineWidth(0.5)
+    c.line(M, cab_y, W-M, cab_y)
+    # Texto cabecera
+    c.setFillColorRGB(*GRIS)
+    c.setFont(fn, 7)
+    dia_semana = HOY.strftime('%A').capitalize()
+    mes = HOY.strftime('%B').capitalize()
+    fecha_txt = f'{dia_semana} {HOY.day} de {mes} de {HOY.year}'
+    ciudad_txt = f'Santiago del Estero {clima}'
+    cotiz_txt = ''
+    if cotiz_of:
+        cotiz_txt += f'  Dolar: {cotiz_of}'
+    if cotiz_bl:
+        cotiz_txt += f'  |  Blue: {cotiz_bl}'
+    cab_line = f'{fecha_txt}  |  {ciudad_txt}{cotiz_txt}'
+    c.drawCentredString(W/2, cab_y + 3.5*mm, cab_line)
+    # ── LOGO: centrado, grande ──────────────────────────────────────
+    logo_y = H - 10*mm - 28*mm
+    draw_logo(c, W/2, logo_y + 14*mm, r=14, escala=1.0)
+    # Texto logo
+    c.setFont(ftb, 22)
+    c.setFillColorRGB(*AZUL)
+    c.drawString(W/2 - 2*mm, logo_y + 9*mm, 'diario')
+    c.setFillColorRGB(*NARANJA)
+    c.drawString(W/2 + 27*mm, logo_y + 9*mm, 'info')
+    c.setFillColorRGB(*GRIS)
+    c.setFont(fn, 12)
+    c.drawString(W/2 + 46*mm, logo_y + 9*mm, '.com')
+    # Subtitulo
+    c.setFont(fn, 9)
+    c.setFillColorRGB(*GRIS)
+    c.drawCentredString(W/2, logo_y + 2*mm, 'Santiago del Estero')
+
+    # Filete bajo logo
+    c.setStrokeColorRGB(*AZUL)
+    c.setLineWidth(1.5)
+    c.line(M, logo_y, W - M, logo_y)
+    c.setStrokeColorRGB(*NARANJA)
+    c.setLineWidth(0.8)
+    c.line(M, logo_y - 1.5*mm, W - M, logo_y - 1.5*mm)
+    # ── NOTA PRINCIPAL ─────────────────────────────────────────────
+    nota_p = notas[0] if notas else None
+    titulo_y = logo_y - 4*mm
+    img_h_princ = 65*mm
+
+    if nota_p:
+        titulo = limpiar_html(nota_p.get('title', ''))
+        bajada = limpiar_html(nota_p.get('summary', '') or nota_p.get('content', ''))
+        img_url = obtener_url_imagen(nota_p.get('image')) if nota_p.get('image') else ''
+
+        # Titulo principal - grande, negro, sin badge
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont(ftb, 26)
+        titulo_lines = wrap_lines(c, titulo, W - 2*M, ftb, 26)
+        titulo_lines = titulo_lines[:3]
+        t_lh = 9.5*mm
+        t_top = titulo_y
+        for ln in titulo_lines:
+            c.drawCentredString(W/2, t_top, ln)
+            t_top -= t_lh
+        t_bottom = t_top
+
+        # Bajada - centrada, gris oscuro
+        c.setFont(fn, 9)
+        c.setFillColorRGB(0.2, 0.2, 0.2)
+        baj_lines = wrap_lines(c, bajada, W - 4*M, fn, 9)
+        baj_lines = baj_lines[:3]
+        baj_y = t_bottom - 2*mm
+        for bl in baj_lines:
+            c.drawCentredString(W/2, baj_y, bl)
+            baj_y -= 4.5*mm
+
+        # Imagen principal - ancho completo, escala proporcional con sangrado
+        img_y_top = baj_y - 3*mm
+        img_w = W - 2*M
+        img_x = M
+        if img_url:
+            try:
+                ir = ImageReader(img_url)
+                img_native_w, img_native_h = ir.getSize()
+                # Escalar proporcionalmente para llenar el ancho
+                scale = img_w / img_native_w
+                draw_h = img_native_h * scale
+                if draw_h < img_h_princ:
+                    # Si es mas baja que el espacio, escalar al alto y sangrar horizontalmente
+                    scale = img_h_princ / img_native_h
+                    draw_w = img_native_w * scale
+                    # Sangrado: recortar centrado
+                    offset_x = (draw_w - img_w) / 2
+                    c.saveState()
+                    c.rect(img_x, img_y_top - img_h_princ, img_w, img_h_princ, fill=0, stroke=0)
+                    c.clipPath(c._code)
+                    c.restoreState()
+                    c.saveState()
+                    p = c.beginPath()
+                    p.rect(img_x, img_y_top - img_h_princ, img_w, img_h_princ)
+                    c.clipPath(p, stroke=0)
+                    c.drawImage(ir, img_x - offset_x, img_y_top - img_h_princ, draw_w, img_h_princ)
+                    c.restoreState()
+                else:
+                    # Sangrado vertical: escalar al ancho y centrar verticalmente
+                    offset_y = (draw_h - img_h_princ) / 2
+                    c.saveState()
+                    p = c.beginPath()
+                    p.rect(img_x, img_y_top - img_h_princ, img_w, img_h_princ)
+                    c.clipPath(p, stroke=0)
+                    c.drawImage(ir, img_x, img_y_top - img_h_princ - offset_y, img_w, draw_h)
+                    c.restoreState()
+            except Exception as e:
+                print(f'  Error imagen principal tapa: {e}')
+                c.setFillColorRGB(*GRIS_BG)
+                c.rect(img_x, img_y_top - img_h_princ, img_w, img_h_princ, fill=1, stroke=0)
+        else:
+            c.setFillColorRGB(*GRIS_BG)
+            c.rect(img_x, img_y_top - img_h_princ, img_w, img_h_princ, fill=1, stroke=0)
+        img_bottom_princ = img_y_top - img_h_princ
+    else:
+        img_bottom_princ = titulo_y - img_h_princ - 20*mm
+    # ── NOTAS SECUNDARIAS: 3 columnas con imagen + texto ───────────
+    notas_sec = notas[1:4]  # hasta 3 notas secundarias
+    sec_y_top = img_bottom_princ - 4*mm
+    sec_h = sec_y_top - 25*mm  # altura disponible hasta el pie
+    col_n = 3
+    col_gap = 3*mm
+    col_w = (W - 2*M - col_gap * (col_n - 1)) / col_n
+    img_h_sec = 38*mm
+
+    for i, ns in enumerate(notas_sec):
+        cx = M + i * (col_w + col_gap)
+        cy = sec_y_top
+
+        # Borde sutil de columna
+        c.setStrokeColorRGB(*GRIS_L)
+        c.setLineWidth(0.5)
+        c.rect(cx, cy - sec_h, col_w, sec_h, fill=0, stroke=1)
+
+        # Categoria: texto pequeno azul en borde superior
+        c.setFillColorRGB(*AZUL)
+        c.setFont(ftb, 6.5)
+        cat = obtener_nombre_categoria(ns.get('category', ns.get('categoryId', '')))
+        c.drawString(cx + 3*mm, cy - 4*mm, cat[:25])
+        c.setStrokeColorRGB(*AZUL)
+        c.setLineWidth(1)
+        c.line(cx, cy, cx + col_w, cy)
+
+        # Imagen de nota secundaria con escala proporcional + sangrado
+        img_url_s = obtener_url_imagen(ns.get('image')) if ns.get('image') else ''
+        img_x_s = cx + 1*mm
+        img_y_s_top = cy - 5*mm
+        img_w_s = col_w - 2*mm
+
+        if img_url_s:
+            try:
+                ir_s = ImageReader(img_url_s)
+                inw, inh = ir_s.getSize()
+                sc = img_w_s / inw
+                dh = inh * sc
+                if dh < img_h_sec:
+                    sc2 = img_h_sec / inh
+                    dw2 = inw * sc2
+                    off_x = (dw2 - img_w_s) / 2
+                    c.saveState()
+                    p2 = c.beginPath()
+                    p2.rect(img_x_s, img_y_s_top - img_h_sec, img_w_s, img_h_sec)
+                    c.clipPath(p2, stroke=0)
+                    c.drawImage(ir_s, img_x_s - off_x, img_y_s_top - img_h_sec, dw2, img_h_sec)
+                    c.restoreState()
+                else:
+                    off_y2 = (dh - img_h_sec) / 2
+                    c.saveState()
+                    p2 = c.beginPath()
+                    p2.rect(img_x_s, img_y_s_top - img_h_sec, img_w_s, img_h_sec)
+                    c.clipPath(p2, stroke=0)
+                    c.drawImage(ir_s, img_x_s, img_y_s_top - img_h_sec - off_y2, img_w_s, dh)
+                    c.restoreState()
+            except Exception as e:
+                print(f'  Error imagen sec tapa {i}: {e}')
+                c.setFillColorRGB(*GRIS_BG)
+                c.rect(img_x_s, img_y_s_top - img_h_sec, img_w_s, img_h_sec, fill=1, stroke=0)
+        else:
+            c.setFillColorRGB(*GRIS_BG)
+            c.rect(img_x_s, img_y_s_top - img_h_sec, img_w_s, img_h_sec, fill=1, stroke=0)
+
+        # Titulo nota secundaria
+        tit_s = limpiar_html(ns.get('title', ''))
+        txt_y = img_y_s_top - img_h_sec - 2*mm
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont(ftb, 8.5)
+        tit_lines = wrap_lines(c, tit_s, col_w - 4*mm, ftb, 8.5)
+        for tl in tit_lines[:3]:
+            c.drawString(cx + 2*mm, txt_y, tl)
+            txt_y -= 3.8*mm
+
+        # Bajada nota secundaria
+        baj_s = limpiar_html(ns.get('summary', '') or ns.get('content', ''))
+        c.setFillColorRGB(*GRIS)
+        c.setFont(fn, 7)
+        baj_s_lines = wrap_lines(c, baj_s, col_w - 4*mm, fn, 7)
+        for bl2 in baj_s_lines[:3]:
+            c.drawString(cx + 2*mm, txt_y, bl2)
+            txt_y -= 3.5*mm
+
+    # ── PIE DE PAGINA ────────────────────────────────────────────────
+    c.setStrokeColorRGB(*GRIS_L)
+    c.setLineWidth(0.5)
+    c.line(M, 18*mm, W - M, 18*mm)
+    c.setFillColorRGB(*GRIS)
+    c.setFont(fn, 7)
+    c.drawString(M, 14*mm, 'www.diarioinfo.com.ar')
+    c.setFont(ftb, 7)
+    c.drawRightString(W - M, 14*mm, 'Edicion Impresa  •  Santiago del Estero')
+
 def generar_pagina_interior(c, nota, num_pag):
     fn  = "Lato-Regular" if "Lato-Regular" in FUENTES_OK else "Helvetica"
     ftb = "Lato-Bold"    if "Lato-Bold"    in FUENTES_OK else "Helvetica-Bold"
@@ -551,7 +663,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v1.6 ===")
+    print("=== Diario Info PDF Generator v2.0 ===")
     print(f"Fecha: {FECHA_STR}")
     
     print("Instalando fuentes...")
