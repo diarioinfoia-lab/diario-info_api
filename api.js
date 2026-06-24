@@ -92,4 +92,6 @@ api.use(require("./routes/bot.router"));
 api.use(require("./routes/playlist.router"));
 api.use(require("./routes/log.router"));
 
+api.use(require('./routes/pdf.router'));
+
 module.exports = api;
