@@ -1,7 +1,7 @@
 <?php
 // generar_pdf.php - Trigger manual de generacion del diario
-// Subir a: /home/diarioin/public_html/generar-pdf.php
-// Acceso:  https://diarioinfo.com/generar-pdf.php?secret=diarioinfo-pdf-2024
+// Subir a: /home/diarioin/public_html/generar_pdf.php
+// Acceso:  https://diarioinfo.com/generar_pdf.php?secret=diarioinfo-pdf-2024
 
 define('SECRET', 'diarioinfo-pdf-2024');
 define('SCRIPT', '/home/diarioin/scripts/genera_diario_pdf.py');
@@ -10,8 +10,8 @@ define('LOG',    '/home/diarioin/logs/genera_pdf.log');
 
 header('Content-Type: text/html; charset=utf-8');
 
-// Verificar secret
-$secret = $_GET['secret'] ?? '';
+// Verificar secret - compatible PHP 5
+$secret = isset($_GET['secret']) ? $_GET['secret'] : '';
 if ($secret !== SECRET) {
     http_response_code(401);
     echo '<h2 style="font-family:sans-serif;color:red">No autorizado</h2>';
@@ -31,7 +31,7 @@ if (!is_dir($log_dir)) {
     mkdir($log_dir, 0755, true);
 }
 
-// Ejecutar en background (no bloquea la respuesta)
+// Ejecutar en background
 $cmd = PYTHON . ' ' . SCRIPT . ' >> ' . LOG . ' 2>&1 &';
 shell_exec($cmd);
 
