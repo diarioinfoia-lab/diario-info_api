@@ -63,21 +63,27 @@ if ($python_ok && $script_ok) {
     if (!is_dir($log_dir)) { mkdir($log_dir, 0755, true); }
     // Limpiar log anterior
     file_put_contents($log_file, '--- Inicio: ' . date('Y-m-d H:i:s') . "\n");
-    // --- AUTO-UPDATE: curl desde GitHub, sobreescribe script local ---
+    // --- AUTO-UPDATE: descarga a /tmp y ejecuta desde ahi ---
     $github_raw = 'https://raw.githubusercontent.com/diarioinfoia-lab/diario-info_api/master/scripts/genera_diario_pdf.py';
-    $update_result = @file_get_contents($github_raw);
-    if ($update_result !== false && strlen($update_result) > 10000 && strpos($update_result, '#!/') === 0) {
-        file_put_contents($script_ok, $update_result);
-        file_put_contents($log_file, "--- AUTO-UPDATE OK: " . strlen($update_result) . " bytes escritos en " . $script_ok . "\n", FILE_APPEND);
-    } else {
-        // fallback: intentar con curl
-        $tmp = $script_ok . '.tmp';
-        $co = shell_exec("curl -fsSL --max-time 20 '" . $github_raw . "' -o '" . $tmp . "' 2>&1");
-        if (file_exists($tmp) && filesize($tmp) > 10000) {
-            rename($tmp, $script_ok);
-            file_put_contents($log_file, "--- AUTO-UPDATE via curl OK: " . filesize($script_ok) . " bytes\n", FILE_APPEND);
+    $tmp_script = '/tmp/diarioinfo_genera_pdf_latest.py';
+    $downloaded = @file_get_contents($github_raw);
+    if ($downloaded !== false && strlen($downloaded) > 10000 && strpos($downloaded, '#!/') === 0) {
+        $written = file_put_contents($tmp_script, $downloaded);
+        if ($written > 10000) {
+            chmod($tmp_script, 0755);
+            $script_ok = $tmp_script;
+            file_put_contents($log_file, "--- AUTO-UPDATE OK: " . $written . " bytes en /tmp\n", FILE_APPEND);
         } else {
-            file_put_contents($log_file, "--- AUTO-UPDATE FALLO (file_get_contents y curl). Usando script local.\n", FILE_APPEND);
+            file_put_contents($log_file, "--- AUTO-UPDATE: fallo escritura en /tmp (" . $written . " bytes)\n", FILE_APPEND);
+        }
+    } else {
+        $co = shell_exec("curl -fsSL --max-time 20 '" . $github_raw . "' -o '" . $tmp_script . "' 2>&1");
+        if (file_exists($tmp_script) && filesize($tmp_script) > 10000) {
+            chmod($tmp_script, 0755);
+            $script_ok = $tmp_script;
+            file_put_contents($log_file, "--- AUTO-UPDATE via curl OK: " . filesize($tmp_script) . " bytes en /tmp\n", FILE_APPEND);
+        } else {
+            file_put_contents($log_file, "--- AUTO-UPDATE FALLO: usando script local " . $script_ok . "\n", FILE_APPEND);
         }
     }
     // --- FIN AUTO-UPDATE ---
