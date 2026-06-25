@@ -527,27 +527,22 @@ def draw_categoria_banda(c, cat, x, y, w, font_ui_b):
 
 
 def wrap_paragraphs(c, texto, ancho, fuente, pts):
-    """Divide texto en lineas respetando parrafos (salto doble = parrafo nuevo).
+    """Divide texto en lineas respetando parrafos.
     Devuelve lista de (linea, es_inicio_parrafo)."""
     if not texto: return []
     result = []
-    # Separar parrafos: doble espacio, punto+salto, etc.
-    parrafos = re.split(r'
-
-+|
-
-+', texto)
-    if len(parrafos) == 1:
-        # Intentar separar por punto y seguido con mayuscula
-        parrafos = re.split(r'(?<=.)s{2,}', texto)
+    # Separar por punto y aparte: punto seguido de 2+ espacios o salto de linea
+    import re as _re2
+    parrafos = _re2.split(r'\. {2,}|\n\n+', texto)
+    if len(parrafos) <= 1:
+        parrafos = [texto]
     for ip, parr in enumerate(parrafos):
         parr = parr.strip()
         if not parr: continue
         lineas = wrap_lines(c, parr, ancho, fuente, pts)
         for il, ln in enumerate(lineas):
-            result.append((ln, il == 0 and ip > 0))  # marca inicio de parrafo
+            result.append((ln, il == 0 and ip > 0))
     return result
-
 
 def draw_cuerpo_2col(c, cuerpo, x_l1, x_l2, y_start, y_end, col_w, font_body, pts_body, lh_body):
     """Dibuja cuerpo en 2 columnas con separador central. Respeta parrafos.
