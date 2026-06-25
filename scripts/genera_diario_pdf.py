@@ -162,7 +162,7 @@ def obtener_url_imagen(image_id, pub_date=None):
                 pass
             stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
             ext = fname.rsplit('.', 1)[1].lower() if '.' in fname else 'jpg'
-            exts_to_try = [ext, 'webp', 'jpg', 'jpeg', 'png']
+            exts_to_try = [ext, 'avif', 'webp', 'jpg', 'jpeg', 'jfif', 'png']
             seen = set()
             for try_ext in exts_to_try:
                 if try_ext in seen: continue
@@ -278,7 +278,7 @@ def get_image_data(url):
     if '.' in url.split('/')[-1]:
         stem_url = url.rsplit('.', 1)[0]
         ext = url.rsplit('.', 1)[1].lower()
-        for alt_ext in ['webp', 'jpg', 'jpeg', 'png']:
+        for alt_ext in ['avif', 'webp', 'jpg', 'jpeg', 'jfif', 'png']:
             if alt_ext != ext:
                 urls_to_try.append(stem_url + '.' + alt_ext)
     # Tambien probar con fecha de ayer (imagen puede estar en carpeta del dia anterior)
@@ -863,7 +863,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.14 ===")
+    print("=== Diario Info PDF Generator v3.15 ===")
     print(f"Fecha: {FECHA_STR}")
     # Diagnostico rutas
     import glob as _glob
