@@ -271,6 +271,20 @@ def get_image_data(url):
         for alt_ext in ['webp', 'jpg', 'jpeg', 'png']:
             if alt_ext != ext:
                 urls_to_try.append(stem_url + '.' + alt_ext)
+    # Tambien probar con fecha de ayer (imagen puede estar en carpeta del dia anterior)
+    if 'sistema/entidades/' in url:
+        from datetime import timedelta as _td
+        ayer = (HOY - _td(days=1)).strftime("%d-%m-%Y")
+        anteayer = (HOY - _td(days=2)).strftime("%d-%m-%Y")
+        fname_only = url.split('/')[-1]
+        for alt_date in [ayer, anteayer]:
+            base_ayer = url.split('sistema/entidades/')[0] + 'sistema/entidades/' + alt_date + '/'
+            urls_to_try.append(base_ayer + fname_only)
+            # Y variantes de extension con fecha anterior
+            if '.' in fname_only:
+                stem_f = fname_only.rsplit('.', 1)[0]
+                for alt_ext in ['webp', 'jpg', 'jpeg', 'png']:
+                    urls_to_try.append(base_ayer + stem_f + '.' + alt_ext)
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "http://www.diarioinfo.com/",
