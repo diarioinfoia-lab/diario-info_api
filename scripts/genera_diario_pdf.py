@@ -584,12 +584,12 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
 
             # Titular: Merriweather-Bold 22pt negro centrado
             ty = HERO_BOT - 8*mm
-            c.setFont(FONT_BN, 42)
+            c.setFont(FONT_BN, 36)
             c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, W - 2*M, FONT_BN, 42)[:4]:
+            for ln in wrap_lines(c, titulo, W - 2*M, FONT_BN, 36)[:5]:
                 if ty < Y_SEC_TOP + baj_h + 4*mm: break
                 c.drawCentredString(W/2, ty, ln)
-                ty -= 42 * 1.2 * 0.3528 * mm
+                ty -= 36 * 1.15 * 0.3528 * mm
 
             # Bajada: Merriweather-Regular 12pt gris centrada
             c.setFont(FTI_R, 12)
@@ -623,13 +623,13 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             # Titular: col der, arranca al mismo Y que la foto
             TIT_X    = M + COL2 + 3*mm
             TIT_W    = COL2 - 3*mm
-            ty       = IMG_TOP - 2*mm
-            c.setFont(FONT_BN, 42)
+            ty       = IMG_TOP
+            c.setFont(FONT_BN, 36)
             c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, TIT_W, FONT_BN, 42)[:5]:
+            for ln in wrap_lines(c, titulo, TIT_W, FONT_BN, 36)[:5]:
                 if ty < IMG_BOT - 10*mm: break
                 c.drawString(TIT_X, ty, ln)
-                ty -= 42 * 1.2 * 0.3528 * mm
+                ty -= 36 * 1.15 * 0.3528 * mm
 
             # Bajada: ancho completo debajo de la foto
             by = IMG_BOT - 5*mm
@@ -684,7 +684,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         for tsl in wrap_lines(c, tit_s, col_w - 2*pad, FONT_BN, 28)[:4]:
             if ty_s < sec_bot + 2*mm: break
             c.drawString(cx + pad, ty_s, tsl)
-            ty_s -= 28 * 1.2 * 0.3528 * mm
+            ty_s -= 28 * 1.15 * 0.3528 * mm
         # Bajada: Lato-Regular 9pt #666666
         baj_s = limpiar_html(ns.get("summary", "") or ns.get("content", ""))
         c.setFont(FUI_R, 9)
@@ -778,7 +778,7 @@ def generar_pagina_interior(c, nota, num_pag):
         for ln in wrap_lines(c, titulo, W - 2*M, FONT_BN, 36)[:4]:
             if ty < CUERPO_Y: break
             c.drawCentredString(W/2, ty, ln)
-            ty -= 36 * 1.2 * 0.3528 * mm
+            ty -= 36 * 1.15 * 0.3528 * mm
 
         # Bajada Merriweather-Regular 12pt gris centrada
         ty -= 2*mm
@@ -807,13 +807,13 @@ def generar_pagina_interior(c, nota, num_pag):
         # Titular col der
         TIT_X   = M + COL2 + 3*mm
         TIT_W   = COL2 - 3*mm
-        ty      = IMG_TOP - 2*mm
+        ty      = IMG_TOP
         c.setFont(FONT_BN, 36)
         c.setFillColorRGB(*NEGRO)
         for ln in wrap_lines(c, titulo, TIT_W, FONT_BN, 36)[:5]:
             if ty < IMG_BOT - 20*mm: break
             c.drawString(TIT_X, ty, ln)
-            ty -= 36 * 1.2 * 0.3528 * mm
+            ty -= 36 * 1.15 * 0.3528 * mm
 
         # Bajada ancho completo debajo de foto
         by = IMG_BOT - 5*mm
@@ -890,7 +890,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.18 ===")
+    print("=== Diario Info PDF Generator v3.19 ===")
     print(f"Fecha: {FECHA_STR}")
     # Diagnostico rutas
     import glob as _glob
