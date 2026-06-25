@@ -162,7 +162,7 @@ def obtener_url_imagen(image_id, pub_date=None):
             for try_ext in exts_to_try:
                 if try_ext in seen: continue
                 seen.add(try_ext)
-                try_fname = urllib.parse.quote(stem + '.' + try_ext, safe='')
+                try_fname = urllib.parse.quote(urllib.parse.unquote(stem) + '.' + try_ext, safe='')
                 url = base_url + try_fname
                 print(f"  [url] Intentando: {url[:100]}")
                 return url  # retornamos la primera (la mas probable) y get_image_data probara las demas
@@ -486,8 +486,8 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     fecha_txt  = f"{dia_semana} {HOY.day} de {mes} de {HOY.year}"
     cli_txt    = f"{clima}" if clima else ""
     cot_txt    = ""
-    if cotiz_of: cot_txt += f"  |  Oficial: {cotiz_of}"
-    if cotiz_bl: cot_txt += f"  |  Blue: {cotiz_bl}"
+    if cotiz_of: cot_txt += f"  |  {cotiz_of}"
+    if cotiz_bl: cot_txt += f"  |  {cotiz_bl}"
     cab_line   = f"{fecha_txt}  |  {cli_txt}{cot_txt}" if cli_txt else f"{fecha_txt}  |  Santiago del Estero{cot_txt}"
     c.setFont(FUI_R, 9)
     c.setFillColorRGB(*GRIS_TXT)
@@ -549,7 +549,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         if ratio_p >= 1.5:
             # Espacio disponible: de Y_EDIT a Y_SEC_TOP
             area_h    = Y_EDIT - Y_SEC_TOP
-            tit_h     = 3 * 9.5*mm    # max 3 lineas titular @22pt
+            tit_h     = 3 * 14*mm    # max 3 lineas titular @33pt
             baj_h     = 2 * 6*mm      # max 2 lineas bajada @12pt
             HERO_H    = area_h - tit_h - baj_h - 10*mm
             HERO_W    = W               # FULL BLEED: de borde a borde
@@ -562,12 +562,12 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
 
             # Titular: Merriweather-Bold 22pt negro centrado
             ty = HERO_BOT - 8*mm
-            c.setFont(FTI_B, 22)
+            c.setFont(FTI_B, 33)
             c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, W - 2*M, FTI_B, 22)[:3]:
+            for ln in wrap_lines(c, titulo, W - 2*M, FTI_B, 33)[:3]:
                 if ty < Y_SEC_TOP + baj_h + 4*mm: break
                 c.drawCentredString(W/2, ty, ln)
-                ty -= 9.5*mm
+                ty -= 14*mm
 
             # Bajada: Merriweather-Regular 12pt gris centrada
             c.setFont(FTI_R, 12)
@@ -597,12 +597,12 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             TIT_X    = M + COL2 + 3*mm
             TIT_W    = COL2 - 3*mm
             ty       = IMG_TOP - 2*mm
-            c.setFont(FTI_B, 22)
+            c.setFont(FTI_B, 33)
             c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, TIT_W, FTI_B, 22)[:4]:
+            for ln in wrap_lines(c, titulo, TIT_W, FTI_B, 33)[:4]:
                 if ty < IMG_BOT: break
                 c.drawString(TIT_X, ty, ln)
-                ty -= 9.5*mm
+                ty -= 14*mm
 
             # Bajada: ancho completo debajo de la foto
             by = IMG_BOT - 5*mm
@@ -619,7 +619,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     col_w     = (W - 2*M) / col_n
     sec_bot   = PIE_H + 3*mm
     pad       = 3*mm
-    img_h_sec = col_w * (3.0/4.0)
+    img_h_sec = col_w * 0.52
 
     for i, ns in enumerate(notas_sec):
         cx = M + i * col_w
@@ -632,7 +632,8 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         cat = obtener_nombre_categoria(ns.get("category", ns.get("categoryId", "")))
         c.setFont(FUI_B, 11)
         c.setFillColorRGB(*AZUL_INST)
-        c.drawString(cx + pad, Y_SEC_TOP - 4.5*mm, cat[:20])
+        safe_cat = cat.encode('ascii', 'replace').decode('ascii')
+        c.drawString(cx + pad, Y_SEC_TOP - 4.5*mm, safe_cat[:20])
         c.setStrokeColorRGB(*AZUL_INST)
         c.setLineWidth(1)
         c.line(cx + pad, Y_SEC_TOP - 6*mm, cx + col_w - pad, Y_SEC_TOP - 6*mm)
@@ -646,12 +647,12 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         # Titular: Merriweather-Bold 22pt negro (fuerza de diseno)
         tit_s = limpiar_html(ns.get("title", ""))
         ty_s  = img_top_s - img_h_sec - 4*mm
-        c.setFont(FTI_B, 22)
+        c.setFont(FTI_B, 18)
         c.setFillColorRGB(*NEGRO)
-        for tsl in wrap_lines(c, tit_s, col_w - 2*pad, FTI_B, 22)[:2]:
+        for tsl in wrap_lines(c, tit_s, col_w - 2*pad, FTI_B, 18)[:3]:
             if ty_s < sec_bot + 2*mm: break
             c.drawString(cx + pad, ty_s, tsl)
-            ty_s -= 9*mm
+            ty_s -= 7.5*mm
         # Bajada: Lato-Regular 9pt #666666
         baj_s = limpiar_html(ns.get("summary", "") or ns.get("content", ""))
         c.setFont(FUI_R, 9)
@@ -707,7 +708,8 @@ def generar_pagina_interior(c, nota, num_pag):
     c.rect(M, Y_BANDA, W - 2*M, 5.5*mm, fill=1, stroke=0)
     c.setFont(FUI_B, 8)
     c.setFillColorRGB(*BLANCO)
-    c.drawString(M + 3*mm, Y_BANDA + 1.5*mm, cat)
+    safe_cat = cat.encode('ascii', 'replace').decode('ascii')
+    c.drawString(M + 3*mm, Y_BANDA + 1.5*mm, safe_cat)
 
     # ── DATOS DE LA NOTA ─────────────────────────────────────────
     titulo  = limpiar_html(nota.get("title", ""))
@@ -856,7 +858,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.8 ===")
+    print("=== Diario Info PDF Generator v3.13 ===")
     print(f"Fecha: {FECHA_STR}")
     # Diagnostico rutas
     import glob as _glob
