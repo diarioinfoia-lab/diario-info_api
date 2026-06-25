@@ -64,8 +64,8 @@ URLS_FUENTES = {
     "Lato-Regular":        "https://github.com/google/fonts/raw/main/ofl/lato/Lato-Regular.ttf",
     "Lato-Bold":           "https://github.com/google/fonts/raw/main/ofl/lato/Lato-Bold.ttf",
     "Lato-Italic":         "https://github.com/google/fonts/raw/main/ofl/lato/Lato-Italic.ttf",
-    "Merriweather-Bold":   "https://github.com/google/fonts/raw/main/ofl/merriweather/static/Merriweather-Bold.ttf",
-    "Merriweather-Regular":"https://github.com/google/fonts/raw/main/ofl/merriweather/static/Merriweather-Regular.ttf",
+    "Merriweather-Bold":   "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/merriweather/static/Merriweather-Bold.ttf",
+    "Merriweather-Regular":"https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/merriweather/static/Merriweather-Regular.ttf",
 }
 
 # -- Variables globales --
@@ -136,6 +136,7 @@ def obtener_url_imagen(image_id):
             if url and url.startswith("/"): url = BASE_IMG_URL + url
             # Encode espacios y caracteres especiales en la URL
             url = urllib.parse.quote(url, safe=":/?=&%")
+            print(f"  [url] {str(url)[:100]}")
             return url
     except Exception as e:
         print(f"  Error imagen {image_id}: {e}")
@@ -161,7 +162,11 @@ def obtener_notas(limite=15):
     
     result = []
     for n in notas:
-        img_url = obtener_url_imagen(n.get("imageId"))
+        _raw_img = n.get("image", "") or ""
+        if _raw_img and _raw_img.startswith("http"):
+            img_url = _raw_img
+        else:
+            img_url = obtener_url_imagen(n.get("imageId") or n.get("image"))
         cat_name = obtener_nombre_categoria(n.get("category"))
         result.append({
             "title":    limpiar_html(n.get("title", "")),
@@ -224,6 +229,7 @@ def draw_text_center(c, texto, cx, y, ancho, fuente, pts, color, max_lineas=99, 
 def get_image_data(url):
     """Descarga imagen y retorna (ImageReader, width_px, height_px) o (None,0,0)"""
     if not url: return None, 0, 0
+    print(f"  [img] Descargando: {str(url)[:80]}")
     try:
         req  = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 DiarioInfo-PDF/1.6"})
         data = urllib.request.urlopen(req, timeout=12).read()
@@ -231,7 +237,7 @@ def get_image_data(url):
         iw, ih = ir.getSize()
         return ir, iw, ih
     except Exception as e:
-        print(f"  [img download] {str(url)[:60]}: {e}")
+        print(f"  [img ERROR] {str(url)}: {e}")
         return None, 0, 0
 
 def draw_image_bleed(c, ir, iw, ih, box_x, box_y, box_w, box_h):
@@ -459,7 +465,8 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     if nota_p:
         titulo  = limpiar_html(nota_p.get("title", ""))
         bajada  = limpiar_html(nota_p.get("summary", "") or nota_p.get("content", ""))
-        img_url = obtener_url_imagen(nota_p.get("image")) if nota_p.get("image") else ""
+        img_url = nota_p.get("img_url", "") or (obtener_url_imagen(nota_p.get("image")) if nota_p.get("image") else "")
+        print(f"  [tapa] img_url principal: {img_url[:100]}")
 
         # Descargar imagen y detectar ratio
         ir_p, iw_p, ih_p = get_image_data(img_url)
@@ -560,7 +567,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         c.setLineWidth(1)
         c.line(cx + pad, Y_SEC_TOP - 6*mm, cx + col_w - pad, Y_SEC_TOP - 6*mm)
         # Imagen 4:3 con sangrado
-        img_url_s = obtener_url_imagen(ns.get("image")) if ns.get("image") else ""
+        img_url_s = ns.get("img_url", "") or (obtener_url_imagen(ns.get("image")) if ns.get("image") else "")
         img_x_s   = cx + pad
         img_w_s   = col_w - 2*pad
         img_top_s = Y_SEC_TOP - 7.5*mm
@@ -634,7 +641,8 @@ def generar_pagina_interior(c, nota, num_pag):
     titulo  = limpiar_html(nota.get("title", ""))
     bajada  = limpiar_html(nota.get("summary", "") or nota.get("content", ""))
     cuerpo  = limpiar_html(nota.get("content", ""))
-    img_url = obtener_url_imagen(nota.get("image")) if nota.get("image") else ""
+    img_url = nota.get("img_url", "") or (obtener_url_imagen(nota.get("image")) if nota.get("image") else "")
+    print(f"  [pagina] img_url: {img_url[:100]}")
 
     # Descargar imagen y detectar ratio
     ir_n, iw_n, ih_n = get_image_data(img_url)
@@ -776,7 +784,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v2.0 ===")
+    print("=== Diario Info PDF Generator v3.5 ===")
     print(f"Fecha: {FECHA_STR}")
     
     print("Instalando fuentes...")
