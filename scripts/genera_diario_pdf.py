@@ -237,17 +237,27 @@ def get_image_data(url):
         return ir, iw, ih
     except Exception as e:
         print(f"  [img urllib ERROR] {str(url)}: {e}")
-        # Fallback: usar curl
+        # Fallback: curl con diferentes opciones
         try:
-            import subprocess, tempfile
+            import subprocess, tempfile, os as _os
             tf = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
             tf.close()
-            r = subprocess.run(["curl", "-fsSL", "--max-time", "15", "-A", "Mozilla/5.0", "-e", "https://diarioinfo.com/", "-o", tf.name, str(url)], capture_output=True, timeout=20)
-            if r.returncode == 0:
+            curl_cmd = ["curl", "-fsSL", "--max-time", "20",
+                "--user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+                "--referer", "https://diarioinfo.com/",
+                "--header", "Accept: image/webp,image/jpeg,image/*,*/*",
+                "--header", "Accept-Language: es-AR,es;q=0.9",
+                "--compressed",
+                "-o", tf.name, str(url)]
+            r = subprocess.run(curl_cmd, capture_output=True, timeout=25)
+            print(f"  [img curl rc={r.returncode}] size={_os.path.getsize(tf.name) if _os.path.exists(tf.name) else 0}")
+            if r.returncode == 0 and _os.path.exists(tf.name) and _os.path.getsize(tf.name) > 100:
                 ir2 = ImageReader(tf.name)
                 iw2, ih2 = ir2.getSize()
                 print(f"  [img curl OK] {iw2}x{ih2}")
                 return ir2, iw2, ih2
+            else:
+                print(f"  [img curl stderr] {r.stderr[:200]}")
         except Exception as e2:
             print(f"  [img curl ERROR] {e2}")
         return None, 0, 0
