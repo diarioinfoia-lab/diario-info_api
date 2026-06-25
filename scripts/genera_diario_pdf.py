@@ -145,9 +145,14 @@ def obtener_url_imagen(image_id, pub_date=None):
             fname = _re.sub(r'^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+Z-', '', fname)
             # Fecha de publicacion en formato dd-mm-yyyy
             if pub_date:
-                fecha_str = pub_date.strftime("%d-%m-%Y")
+                # Ajustar a zona horaria AR (UTC-3): si pub_date tiene hora < 3, usar dia anterior
+                from datetime import timedelta as _td2
+                _adj = pub_date - _td2(hours=3)
+                fecha_str = _adj.strftime("%d-%m-%Y")
             else:
-                fecha_str = HOY.strftime("%d-%m-%Y")
+                # Default: usar ayer (imagenes subidas en UTC, diario en UTC-3)
+                from datetime import timedelta as _td3
+                fecha_str = (HOY - _td3(days=1)).strftime("%d-%m-%Y")
             base_url = "http://www.diarioinfo.com/sistema/entidades/" + fecha_str + "/"
             # Probar diferentes extensiones
             stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
