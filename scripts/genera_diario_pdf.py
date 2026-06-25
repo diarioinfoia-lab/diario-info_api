@@ -350,6 +350,42 @@ def obtener_clima():
         return "Santiago del Estero"
 
 # ── TAPA ─────────────────────────────────────────────────────────────────────────
+def draw_icon(c, cx_icon, cy_icon, r_icon, escala=1.0):
+    """Dibuja el icono circular bicolor (izq azul, der naranja) con triangulo blanco."""
+    import math
+    r = r_icon * escala
+    # Mitad izquierda AZUL
+    c.setFillColorRGB(*AZUL_INST)
+    p = c.beginPath()
+    for i in range(181):
+        ang = math.radians(90 + i)
+        px, py = cx_icon + r*math.cos(ang), cy_icon + r*math.sin(ang)
+        if i == 0: p.moveTo(px, py)
+        else:      p.lineTo(px, py)
+    p.close()
+    c.drawPath(p, fill=1, stroke=0)
+    # Mitad derecha NARANJA
+    c.setFillColorRGB(*NARANJA_C)
+    p2 = c.beginPath()
+    for i in range(181):
+        ang = math.radians(270 + i)
+        px, py = cx_icon + r*math.cos(ang), cy_icon + r*math.sin(ang)
+        if i == 0: p2.moveTo(px, py)
+        else:      p2.lineTo(px, py)
+    p2.close()
+    c.drawPath(p2, fill=1, stroke=0)
+    # Triangulo BLANCO (play)
+    c.setFillColorRGB(*BLANCO)
+    size = r * 0.65
+    px0  = cx_icon - size * 0.3
+    p3   = c.beginPath()
+    p3.moveTo(px0 - size*0.5, cy_icon + size*0.55)
+    p3.lineTo(px0 - size*0.5, cy_icon - size*0.55)
+    p3.lineTo(px0 + size*0.65, cy_icon)
+    p3.close()
+    c.drawPath(p3, fill=1, stroke=0)
+
+
 def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     """Tapa v3.1 - layout adaptativo segun ratio imagen principal
        Layout A (ratio>=1.5 panoramica): foto FULL BLEED borde a borde, titular+bajada debajo
