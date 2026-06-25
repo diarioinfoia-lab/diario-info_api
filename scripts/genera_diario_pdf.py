@@ -482,26 +482,10 @@ def draw_icon(c, cx_icon, cy_icon, r_icon, escala=1.0):
     c.drawPath(p3, fill=1, stroke=0)
 
 
-def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
-    """Tapa v3.1 - layout adaptativo segun ratio imagen principal
-       Layout A (ratio>=1.5 panoramica): foto FULL BLEED borde a borde, titular+bajada debajo
-       Layout B (ratio<1.5 cuadrada/4:3): foto col izq + titular col der, bajada full-width
-    """
-    W, H = A4
-    M    = 15*mm
-    COL2 = (W - 2*M) / 2   # ancho de media columna
 
-    FUI_R = FONT_T
-    FUI_B = FONT_TB
-    FTI_B = FONT_MBold
-    FTI_R = FONT_MReg
-
-    # Fondo blanco
-    c.setFillColorRGB(*BLANCO)
-    c.rect(0, 0, W, H, fill=1, stroke=0)
-
-    # ── CABECERA (Y absoluto) ────────────────────────────────────
-    DIAS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+def draw_cabecera(c, W, H, M, num_pag=None, cotiz_of="", cotiz_bl="", clima=""):
+    """Dibuja cabecera: fecha/clima/cotiz centrado. Si num_pag, incluye numero de pagina."""
+    DIAS_ES  = ["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"]
     MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"]
     dia_semana = DIAS_ES[HOY.weekday()]
     mes        = MESES_ES[HOY.month - 1]
@@ -510,19 +494,120 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     cot_txt    = ""
     if cotiz_of: cot_txt += f"  |  {cotiz_of}"
     if cotiz_bl: cot_txt += f"  |  {cotiz_bl}"
-    cab_line   = f"{fecha_txt}  |  {cli_txt}{cot_txt}" if cli_txt else f"{fecha_txt}  |  Santiago del Estero{cot_txt}"
-    c.setFont(FUI_R, 9)
+    if num_pag:
+        cab_line = f"{fecha_txt}  |  Santiago del Estero  |  diarioinfo.com  |  Pag. {num_pag}"
+    elif cli_txt:
+        cab_line = f"{fecha_txt}  |  {cli_txt}{cot_txt}"
+    else:
+        cab_line = f"{fecha_txt}  |  Santiago del Estero{cot_txt}"
+    c.setFont(FONT_T, 9)
     c.setFillColorRGB(*GRIS_TXT)
     c.drawCentredString(W/2, H - 6*mm, cab_line)
 
-    # ── LOGO ─────────────────────────────────────────────────────
-    # Icono circular bicolor (izq azul, der naranja) con triangulo blanco
+
+def draw_pie(c, W, M, pie_y):
+    """Dibuja pie de pagina con linea divisoria."""
+    c.setStrokeColorRGB(*GRIS_L)
+    c.setLineWidth(0.5)
+    c.line(M, pie_y + 4*mm, W - M, pie_y + 4*mm)
+    c.setFont(FONT_T, 9)
+    c.setFillColorRGB(*GRIS_TXT)
+    c.drawString(M, pie_y, "www.diarioinfo.com.ar")
+    c.drawRightString(W - M, pie_y, "Edicion Impresa  -  Santiago del Estero")
+
+
+def draw_categoria_banda(c, cat, x, y, w, font_ui_b):
+    """Dibuja banda de categoria: fondo azul + texto blanco."""
+    safe_cat = (cat or "GENERAL").encode('ascii','replace').decode('ascii')[:25]
+    c.setFillColorRGB(*AZUL_INST)
+    c.rect(x, y, w, 5*mm, fill=1, stroke=0)
+    c.setFont(font_ui_b, 8)
+    c.setFillColorRGB(*BLANCO)
+    c.drawString(x + 2*mm, y + 1.3*mm, safe_cat)
+
+
+def wrap_paragraphs(c, texto, ancho, fuente, pts):
+    """Divide texto en lineas respetando parrafos (salto doble = parrafo nuevo).
+    Devuelve lista de (linea, es_inicio_parrafo)."""
+    if not texto: return []
+    result = []
+    # Separar parrafos: doble espacio, punto+salto, etc.
+    parrafos = re.split(r'
+
++|
+
++', texto)
+    if len(parrafos) == 1:
+        # Intentar separar por punto y seguido con mayuscula
+        parrafos = re.split(r'(?<=.)s{2,}', texto)
+    for ip, parr in enumerate(parrafos):
+        parr = parr.strip()
+        if not parr: continue
+        lineas = wrap_lines(c, parr, ancho, fuente, pts)
+        for il, ln in enumerate(lineas):
+            result.append((ln, il == 0 and ip > 0))  # marca inicio de parrafo
+    return result
+
+
+def draw_cuerpo_2col(c, cuerpo, x_l1, x_l2, y_start, y_end, col_w, font_body, pts_body, lh_body):
+    """Dibuja cuerpo en 2 columnas con separador central. Respeta parrafos.
+    Devuelve True si el cuerpo no cabia completo."""
+    if not cuerpo: return False
+    indent = 3*mm  # sangria de parrafo
+    todas = wrap_paragraphs(c, cuerpo, col_w - 2*mm, font_body, pts_body)
+    half  = max(1, len(todas) // 2)
+    col1  = todas[:half]
+    col2  = todas[half:]
+    # Separador vertical central
+    c.setStrokeColorRGB(*GRIS_L)
+    c.setLineWidth(0.5)
+    c.line((x_l1 + col_w + x_l2) / 2, y_start, (x_l1 + col_w + x_l2) / 2, y_end)
+    desborde = False
+    for col_i, col_lines in enumerate([(col1, x_l1), (col2, x_l2)]):
+        lineas, cx = col_lines
+        cy = y_start
+        c.setFont(font_body, pts_body)
+        c.setFillColorRGB(*NEGRO)
+        for ln, es_parr in lineas:
+            if cy < y_end:
+                desborde = True
+                break
+            dx = indent if es_parr else 0
+            c.drawString(cx + dx, cy, ln)
+            cy -= lh_body
+    return desborde
+
+
+def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
+    """Tapa v3.20 - Layout adaptativo estricto:
+       Layout A: ratio>=1.5 -> foto 2 columnas full-width, titulo completo debajo
+       Layout B: ratio<1.5  -> foto 1 columna izq, titulo completo 1 columna der al mismo Y
+    """
+    W, H = A4
+    M    = 15*mm
+    COL2 = (W - 2*M) / 2
+
+    FUI_R = FONT_T
+    FUI_B = FONT_TB
+    FTI_B = FONT_MBold   # Merriweather-Bold para titulares
+    FTI_R = FONT_MReg
+    TIT_PTS   = 22        # titulos tapa principal
+    TIT_SEC   = TIT_PTS - 4  # titulos notas secundarias (4pt menos)
+    TIT_LH    = TIT_PTS * 1.2 * 0.3528 * mm
+    TIT_SEC_LH = TIT_SEC * 1.2 * 0.3528 * mm
+
+    # Fondo blanco
+    c.setFillColorRGB(*BLANCO)
+    c.rect(0, 0, W, H, fill=1, stroke=0)
+
+    # Cabecera
+    draw_cabecera(c, W, H, M, cotiz_of=cotiz_of, cotiz_bl=cotiz_bl, clima=clima)
+
+    # Logo
     cx_icon = W/2 - 28*mm
     cy_icon = H - 22*mm
     r_icon  = 8*mm
     draw_icon(c, cx_icon, cy_icon, r_icon)
-
-    # "diario" en azul, "info" en naranja, ".com" en gris
     c.setFont(FUI_B, 26)
     dw_d = c.stringWidth("diario", FUI_B, 26)
     dw_i = c.stringWidth("info",   FUI_B, 26)
@@ -547,111 +632,105 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     c.setLineWidth(0.8)
     c.line(M, Y_FIL - 1.5*mm, W - M, Y_FIL - 1.5*mm)
 
-    # ── NOTA PRINCIPAL - layout adaptativo por ratio de imagen ───
-    nota_p  = notas[0] if notas else None
-    Y_EDIT  = Y_FIL - 3*mm   # inicio area editorial bajo filete
-    PIE_H   = 14*mm
-    SEC_H   = 110*mm          # altura bloque notas secundarias
-    Y_SEC_TOP = PIE_H + SEC_H  # tope de notas secundarias
+    # Zona editorial
+    nota_p   = notas[0] if notas else None
+    Y_EDIT   = Y_FIL - 3*mm
+    PIE_H    = 14*mm
+    SEC_H    = 100*mm
+    Y_SEC_TOP = PIE_H + SEC_H
 
     if nota_p:
         titulo  = limpiar_html(nota_p.get("title", ""))
-        bajada  = limpiar_html(nota_p.get("summary", "") or nota_p.get("content", ""))
-        img_url = nota_p.get("img_url", "") or (obtener_url_imagen(nota_p.get("image")) if nota_p.get("image") else "")
+        bajada  = limpiar_html(nota_p.get("excerpt") or nota_p.get("content", ""))
+        img_url = nota_p.get("img_url", "")
+        cat     = nota_p.get("category", "GENERAL")
         print(f"  [tapa] img_url principal: {img_url[:100]}")
 
-        # Descargar imagen y detectar ratio
         ir_p, iw_p, ih_p = get_image_data(img_url)
         ratio_p = (iw_p / ih_p) if ih_p > 0 else 0
 
-        # --- LAYOUT A: ratio >= 1.5 (16:9 o panoramica) ---
-        # Foto FULL BLEED de borde a borde (x=0, w=W)
-        # Titular Merriweather-Bold 22pt negro centrado debajo
-        # Bajada Merriweather-Regular 12pt gris centrada debajo
+        # ── LAYOUT A: ratio >= 1.5 (apaisada / panoramica) ──────────────────────
+        # Foto ocupa las 2 columnas (ancho completo de pagina)
+        # Titulo completo debajo de la foto
         if ratio_p >= 1.5:
-            # Espacio disponible: de Y_EDIT a Y_SEC_TOP
-            area_h    = Y_EDIT - Y_SEC_TOP
-            tit_h     = 3 * 14*mm    # max 3 lineas titular @33pt
-            baj_h     = 2 * 6*mm      # max 2 lineas bajada @12pt
-            HERO_H    = area_h - tit_h - baj_h - 10*mm
-            HERO_W    = W               # FULL BLEED: de borde a borde
-            HERO_X    = 0
-            HERO_TOP  = Y_EDIT - 2*mm
-            HERO_BOT  = HERO_TOP - HERO_H
-
-            # Foto full bleed
-            draw_image_bleed(c, ir_p, iw_p, ih_p, HERO_X, HERO_BOT, HERO_W, HERO_H)
-
-            # Titular: Merriweather-Bold 22pt negro centrado
-            ty = HERO_BOT - 8*mm
-            c.setFont(FONT_BN, 36)
-            c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, W - 2*M, FONT_BN, 36)[:5]:
-                if ty < Y_SEC_TOP + baj_h + 4*mm: break
-                c.drawCentredString(W/2, ty, ln)
-                ty -= 36 * 1.15 * 0.3528 * mm
-
-            # Bajada: Merriweather-Regular 12pt gris centrada
-            c.setFont(FTI_R, 12)
-            c.setFillColorRGB(*GRIS_TXT)
-            for bl in wrap_lines(c, bajada, W - 4*M, FTI_R, 12)[:2]:
-                if ty < Y_SEC_TOP + 2*mm: break
-                c.drawCentredString(W/2, ty, bl)
-                ty -= 6*mm
-            # Linea separadora gris
-            sep_y_a = ty - 3*mm
-            c.setStrokeColorRGB(*GRIS_L)
-            c.setLineWidth(0.5)
-            c.line(M, sep_y_a, W - M, sep_y_a)
-
-        # --- LAYOUT B: ratio < 1.5 (cuadrada, portrait, 4:3) ---
-        # Foto columna izquierda (col 1)
-        # Titular columna derecha (col 2), arrancando al mismo Y que la foto
-        # Bajada a ancho completo debajo de foto+titular
-        else:
-            area_h   = Y_EDIT - Y_SEC_TOP
-            IMG_W    = COL2 - 3*mm
-            # Altura de imagen = min del espacio disponible o ratio 4:3
-            IMG_H    = min(area_h - 22*mm, IMG_W * (4.0/3.0))
-            IMG_X    = M
-            IMG_TOP  = Y_EDIT - 2*mm
-            IMG_BOT  = IMG_TOP - IMG_H
-
-            # Foto col izq con sangrado
+            IMG_W  = W               # full bleed
+            IMG_H  = IMG_W * (9.0/16.0)
+            IMG_X  = 0
+            IMG_TOP = Y_EDIT - 2*mm
+            IMG_BOT = IMG_TOP - IMG_H
             draw_image_bleed(c, ir_p, iw_p, ih_p, IMG_X, IMG_BOT, IMG_W, IMG_H)
 
-            # Titular: col der, arranca al mismo Y que la foto
-            TIT_X    = M + COL2 + 3*mm
-            TIT_W    = COL2 - 3*mm
-            ty       = IMG_TOP
-            c.setFont(FONT_BN, 36)
-            c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, TIT_W, FONT_BN, 36)[:5]:
-                if ty < IMG_BOT - 10*mm: break
-                c.drawString(TIT_X, ty, ln)
-                ty -= 36 * 1.15 * 0.3528 * mm
+            # Categoria
+            draw_categoria_banda(c, cat, M, IMG_BOT - 7*mm, W - 2*M, FUI_B)
 
-            # Bajada: ancho completo debajo de la foto
-            by = IMG_BOT - 5*mm
-            c.setFont(FTI_R, 12)
+            # Titulo completo debajo de imagen (sin limite de lineas)
+            ty = IMG_BOT - 9*mm
+            c.setFont(FTI_B, TIT_PTS)
+            c.setFillColorRGB(*NEGRO)
+            for ln in wrap_lines(c, titulo, W - 2*M, FTI_B, TIT_PTS):
+                if ty < Y_SEC_TOP + 3*mm: break
+                c.drawCentredString(W/2, ty, ln)
+                ty -= TIT_LH
+
+            # Bajada
+            ty -= 2*mm
+            c.setFont(FTI_R, 10)
             c.setFillColorRGB(*GRIS_TXT)
-            for bl in wrap_lines(c, bajada, W - 2*M, FTI_R, 12)[:2]:
-                if by < Y_SEC_TOP + 2*mm: break
-                c.drawCentredString(W/2, by, bl)
-                by -= 6*mm
-            # Linea separadora gris
-            sep_y_b = by - 3*mm
+            for bl_ln in wrap_lines(c, bajada, W - 4*M, FTI_R, 10)[:2]:
+                if ty < Y_SEC_TOP + 2*mm: break
+                c.drawCentredString(W/2, ty, bl_ln)
+                ty -= 5*mm
+
+            # Separador
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
-            c.line(M, sep_y_b, W - M, sep_y_b)
+            c.line(M, ty - 2*mm, W - M, ty - 2*mm)
 
-    # ── NOTAS SECUNDARIAS - 3 columnas ────────────────────────
+        # ── LAYOUT B: ratio < 1.5 (vertical, cuadrada, 4:3, 9:16) ──────────────
+        # Foto en 1 columna izq, titulo completo en columna der al mismo Y
+        else:
+            area_h  = Y_EDIT - Y_SEC_TOP
+            IMG_W   = COL2 - 3*mm
+            IMG_H   = min(area_h - 20*mm, IMG_W * (4.0/3.0))
+            IMG_X   = M
+            IMG_TOP = Y_EDIT - 2*mm
+            IMG_BOT = IMG_TOP - IMG_H
+            draw_image_bleed(c, ir_p, iw_p, ih_p, IMG_X, IMG_BOT, IMG_W, IMG_H)
+
+            # Titulo columna derecha, arranca al mismo Y que la foto
+            TIT_X = M + COL2 + 3*mm
+            TIT_W = COL2 - 3*mm
+            ty    = IMG_TOP
+            draw_categoria_banda(c, cat, TIT_X, ty - 6*mm, TIT_W, FUI_B)
+            ty -= 8*mm
+            c.setFont(FTI_B, TIT_PTS)
+            c.setFillColorRGB(*NEGRO)
+            for ln in wrap_lines(c, titulo, TIT_W, FTI_B, TIT_PTS):
+                if ty < IMG_BOT - 5*mm: break
+                c.drawString(TIT_X, ty, ln)
+                ty -= TIT_LH
+
+            # Bajada ancho completo debajo de imagen
+            by = IMG_BOT - 5*mm
+            c.setFont(FTI_R, 10)
+            c.setFillColorRGB(*GRIS_TXT)
+            for bl_ln in wrap_lines(c, bajada, W - 2*M, FTI_R, 10)[:2]:
+                if by < Y_SEC_TOP + 2*mm: break
+                c.drawCentredString(W/2, by, bl_ln)
+                by -= 5*mm
+
+            # Separador
+            c.setStrokeColorRGB(*GRIS_L)
+            c.setLineWidth(0.5)
+            c.line(M, by - 2*mm, W - M, by - 2*mm)
+
+    # ── NOTAS SECUNDARIAS: 3 columnas ───────────────────────────────────────────
     notas_sec = notas[1:4]
-    col_n     = 3
-    col_w     = (W - 2*M) / col_n
-    sec_bot   = PIE_H + 3*mm
-    pad       = 3*mm
-    img_h_sec = col_w * 0.52
+    col_n  = 3
+    col_w  = (W - 2*M) / col_n
+    sec_bot = PIE_H + 3*mm
+    pad    = 3*mm
+    img_h_sec = col_w * 0.50
 
     for i, ns in enumerate(notas_sec):
         cx = M + i * col_w
@@ -660,52 +739,41 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
             c.line(M + (i+1)*col_w, Y_SEC_TOP, M + (i+1)*col_w, sec_bot)
-        # Categoria: Lato-Bold 11pt azul
-        cat = obtener_nombre_categoria(ns.get("category", ns.get("categoryId", "")))
-        c.setFont(FUI_B, 11)
+        # Categoria
+        cat_s = ns.get("category", "GENERAL")
+        c.setFont(FUI_B, 9)
         c.setFillColorRGB(*AZUL_INST)
-        safe_cat = cat.encode('ascii', 'replace').decode('ascii')
-        c.drawString(cx + pad, Y_SEC_TOP - 4.5*mm, safe_cat[:20])
+        safe_cat = (cat_s or "").encode('ascii','replace').decode('ascii')[:20]
+        c.drawString(cx + pad, Y_SEC_TOP - 4*mm, safe_cat)
         c.setStrokeColorRGB(*AZUL_INST)
-        c.setLineWidth(1)
-        c.line(cx + pad, Y_SEC_TOP - 6*mm, cx + col_w - pad, Y_SEC_TOP - 6*mm)
-        # Imagen 4:3 con sangrado
-        img_url_s = ns.get("img_url", "") or (obtener_url_imagen(ns.get("image")) if ns.get("image") else "")
+        c.setLineWidth(0.8)
+        c.line(cx + pad, Y_SEC_TOP - 5*mm, cx + col_w - pad, Y_SEC_TOP - 5*mm)
+        # Imagen
+        img_url_s = ns.get("img_url", "")
         img_x_s   = cx + pad
         img_w_s   = col_w - 2*pad
-        img_top_s = Y_SEC_TOP - 7.5*mm
+        img_top_s = Y_SEC_TOP - 6.5*mm
         ir_s, iw_s, ih_s = get_image_data(img_url_s)
         draw_image_bleed(c, ir_s, iw_s, ih_s, img_x_s, img_top_s - img_h_sec, img_w_s, img_h_sec)
-        # Titular: Merriweather-Bold 22pt negro (fuerza de diseno)
+        # Titulo completo (4pt menos que principal)
         tit_s = limpiar_html(ns.get("title", ""))
-        ty_s  = img_top_s - img_h_sec - 4*mm
-        c.setFont(FONT_BN, 28)
+        ty_s  = img_top_s - img_h_sec - 3*mm
+        c.setFont(FTI_B, TIT_SEC)
         c.setFillColorRGB(*NEGRO)
-        for tsl in wrap_lines(c, tit_s, col_w - 2*pad, FONT_BN, 28)[:4]:
-            if ty_s < sec_bot + 2*mm: break
+        for tsl in wrap_lines(c, tit_s, col_w - 2*pad, FTI_B, TIT_SEC):
+            if ty_s < sec_bot + 1*mm: break
             c.drawString(cx + pad, ty_s, tsl)
-            ty_s -= 28 * 1.15 * 0.3528 * mm
-        # Bajada: Lato-Regular 9pt #666666
-        baj_s = limpiar_html(ns.get("summary", "") or ns.get("content", ""))
-        c.setFont(FUI_R, 9)
-        c.setFillColorRGB(*GRIS_N)
-        for bsl in wrap_lines(c, baj_s, col_w - 2*pad, FUI_R, 9)[:2]:
-            if ty_s < sec_bot: break
-            c.drawString(cx + pad, ty_s, bsl)
-            ty_s -= 4*mm
+            ty_s -= TIT_SEC_LH
 
-    # ── PIE ──────────────────────────────────────────────────────
-    c.setStrokeColorRGB(*GRIS_L)
-    c.setLineWidth(0.5)
-    c.line(M, PIE_H - 2*mm, W - M, PIE_H - 2*mm)
-    c.setFont(FUI_R, 9)
-    c.setFillColorRGB(*GRIS_TXT)
-    c.drawString(M,          PIE_H - 6*mm, "www.diarioinfo.com.ar")
-    c.drawRightString(W - M, PIE_H - 6*mm, "Edición Impresa  •  Santiago del Estero")
+    # Pie
+    draw_pie(c, W, M, PIE_H - 6*mm)
+
+
 def generar_pagina_interior(c, nota, num_pag):
-    """Interior v3.1 - layout adaptativo segun ratio de imagen
-       Layout A (ratio>=1.5): foto full-bleed ancho completo arriba, titular+bajada debajo, cuerpo 2 col
-       Layout B (ratio<1.5): foto col izq + titular col der, bajada+cuerpo 2 col debajo
+    """Pagina interior v3.20 - Layout adaptativo:
+       Layout A: ratio>=1.5 -> foto full-width 2col, titulo centrado debajo, cuerpo 2col
+       Layout B: ratio<1.5  -> foto col izq + titulo col der al mismo Y, cuerpo 2col debajo
+       Regla: titulo siempre completo. Si el cuerpo no entra, agrega leyenda al final.
     """
     W, H = A4
     M    = 15*mm
@@ -715,146 +783,117 @@ def generar_pagina_interior(c, nota, num_pag):
     FUI_B = FONT_TB
     FTI_B = FONT_MBold
     FTI_R = FONT_MReg
+    TIT_PTS  = 22
+    TIT_LH   = TIT_PTS * 1.2 * 0.3528 * mm
+    BODY_PTS = 10
+    BODY_LH  = BODY_PTS * 1.4 * 0.3528 * mm
 
     c.setFillColorRGB(*BLANCO)
     c.rect(0, 0, W, H, fill=1, stroke=0)
 
-    # ── CABECERA ─────────────────────────────────────────────────
-    DIAS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
-    MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"]
-    dia_semana = DIAS_ES[HOY.weekday()]
-    mes        = MESES_ES[HOY.month - 1]
-    fecha_txt  = f"{dia_semana} {HOY.day} de {mes} de {HOY.year}"
-    cab_txt    = f"{fecha_txt}  |  Santiago del Estero  |  diarioinfo.com  |  Pag. {num_pag}"
-    c.setFont(FUI_R, 9)
-    c.setFillColorRGB(*GRIS_TXT)
-    c.drawCentredString(W/2, H - 7*mm, cab_txt)
-    c.setStrokeColorRGB(*GRIS_L)
-    c.setLineWidth(0.5)
-    c.line(M, H - 9*mm, W - M, H - 9*mm)
+    # Cabecera
+    draw_cabecera(c, W, H, M, num_pag=num_pag)
 
-    # ── BANDA CATEGORIA ──────────────────────────────────────────
-    cat = obtener_nombre_categoria(nota.get("category", nota.get("categoryId", "")))
+    # Banda categoria
+    cat = nota.get("category", "GENERAL")
     Y_BANDA = H - 9*mm - 7*mm
-    c.setFillColorRGB(*AZUL_INST)
-    c.rect(M, Y_BANDA, W - 2*M, 5.5*mm, fill=1, stroke=0)
-    c.setFont(FUI_B, 8)
-    c.setFillColorRGB(*BLANCO)
-    safe_cat = cat.encode('ascii', 'replace').decode('ascii')
-    c.drawString(M + 3*mm, Y_BANDA + 1.5*mm, safe_cat)
+    draw_categoria_banda(c, cat, M, Y_BANDA, W - 2*M, FUI_B)
 
-    # ── DATOS DE LA NOTA ─────────────────────────────────────────
+    # Datos nota
     titulo  = limpiar_html(nota.get("title", ""))
-    bajada  = limpiar_html(nota.get("summary", "") or nota.get("content", ""))
+    bajada  = limpiar_html(nota.get("excerpt") or nota.get("content", ""))
     cuerpo  = limpiar_html(nota.get("content", ""))
-    img_url = nota.get("img_url", "") or (obtener_url_imagen(nota.get("image")) if nota.get("image") else "")
+    img_url = nota.get("img_url", "")
     print(f"  [pagina] img_url: {img_url[:100]}")
 
-    # Descargar imagen y detectar ratio
     ir_n, iw_n, ih_n = get_image_data(img_url)
     ratio_n = (iw_n / ih_n) if ih_n > 0 else 0
 
-    Y_CONT  = Y_BANDA - 3*mm   # inicio contenido
-    PIE_Y   = 18*mm
-    CUERPO_Y = PIE_Y + 2*mm    # donde empieza el cuerpo de texto
+    Y_CONT = Y_BANDA - 3*mm
+    PIE_Y  = 18*mm
+    CUERPO_Y = PIE_Y + 6*mm
 
-    # --- LAYOUT A: ratio >= 1.5 (16:9, panoramica) ---
-    # Foto FULL BLEED ancho completo arriba
-    # Titular Merriweather-Bold 18pt centrado debajo
-    # Bajada 12pt gris centrada
-    # Cuerpo 2 columnas debajo
+    # ── LAYOUT A: ratio >= 1.5 (apaisada) ────────────────────────────────────
     if ratio_n >= 1.5:
-        IMG_W   = W               # FULL BLEED
-        IMG_H   = IMG_W * (9.0/16.0)
-        IMG_X   = 0
+        IMG_W  = W
+        IMG_H  = IMG_W * (9.0/16.0)
+        IMG_X  = 0
         IMG_TOP = Y_CONT - 2*mm
         IMG_BOT = IMG_TOP - IMG_H
         draw_image_bleed(c, ir_n, iw_n, ih_n, IMG_X, IMG_BOT, IMG_W, IMG_H)
 
-        # Titular Merriweather-Bold 18pt centrado
-        ty = IMG_BOT - 7*mm
-        c.setFont(FONT_BN, 36)
+        # Titulo completo centrado debajo
+        ty = IMG_BOT - 6*mm
+        c.setFont(FTI_B, TIT_PTS)
         c.setFillColorRGB(*NEGRO)
-        for ln in wrap_lines(c, titulo, W - 2*M, FONT_BN, 36)[:4]:
-            if ty < CUERPO_Y: break
+        for ln in wrap_lines(c, titulo, W - 2*M, FTI_B, TIT_PTS):
+            if ty < CUERPO_Y + 40*mm: break
             c.drawCentredString(W/2, ty, ln)
-            ty -= 36 * 1.15 * 0.3528 * mm
+            ty -= TIT_LH
 
-        # Bajada Merriweather-Regular 12pt gris centrada
+        # Bajada
         ty -= 2*mm
-        c.setFont(FTI_R, 12)
+        c.setFont(FTI_R, 10)
         c.setFillColorRGB(*GRIS_TXT)
-        for bl in wrap_lines(c, bajada, W - 4*M, FTI_R, 12)[:2]:
-            if ty < CUERPO_Y: break
-            c.drawCentredString(W/2, ty, bl)
-            ty -= 6*mm
+        for bl_ln in wrap_lines(c, bajada, W - 4*M, FTI_R, 10)[:3]:
+            if ty < CUERPO_Y + 30*mm: break
+            c.drawCentredString(W/2, ty, bl_ln)
+            ty -= 5*mm
 
         cuerpo_start = ty - 4*mm
 
-    # --- LAYOUT B: ratio < 1.5 (cuadrada/4:3) ---
-    # Foto columna izq | Titular columna der al mismo Y
-    # Bajada ancho completo debajo de foto+titular
-    # Cuerpo 2 columnas debajo
+    # ── LAYOUT B: ratio < 1.5 (vertical, cuadrada, 4:3, 9:16) ───────────────
     else:
-        IMG_W    = COL2 - 3*mm
-        IMG_H    = min(Y_CONT - CUERPO_Y - 40*mm, IMG_W * (4.0/3.0))
-        IMG_X    = M
-        IMG_TOP  = Y_CONT - 2*mm
-        IMG_BOT  = IMG_TOP - IMG_H
-
+        IMG_W  = COL2 - 3*mm
+        IMG_H  = min(Y_CONT - CUERPO_Y - 35*mm, IMG_W * (4.0/3.0))
+        IMG_X  = M
+        IMG_TOP = Y_CONT - 2*mm
+        IMG_BOT = IMG_TOP - IMG_H
         draw_image_bleed(c, ir_n, iw_n, ih_n, IMG_X, IMG_BOT, IMG_W, IMG_H)
 
-        # Titular col der
-        TIT_X   = M + COL2 + 3*mm
-        TIT_W   = COL2 - 3*mm
-        ty      = IMG_TOP
-        c.setFont(FONT_BN, 36)
+        # Titulo columna derecha, arranca al mismo Y que la foto
+        TIT_X = M + COL2 + 3*mm
+        TIT_W = COL2 - 3*mm
+        ty    = IMG_TOP
+        c.setFont(FTI_B, TIT_PTS)
         c.setFillColorRGB(*NEGRO)
-        for ln in wrap_lines(c, titulo, TIT_W, FONT_BN, 36)[:5]:
-            if ty < IMG_BOT - 20*mm: break
+        for ln in wrap_lines(c, titulo, TIT_W, FTI_B, TIT_PTS):
+            if ty < IMG_BOT - 5*mm: break
             c.drawString(TIT_X, ty, ln)
-            ty -= 36 * 1.15 * 0.3528 * mm
+            ty -= TIT_LH
 
-        # Bajada ancho completo debajo de foto
+        # Bajada ancho completo debajo de imagen
         by = IMG_BOT - 5*mm
-        c.setFont(FTI_R, 12)
+        c.setFont(FTI_R, 10)
         c.setFillColorRGB(*GRIS_TXT)
-        for bl in wrap_lines(c, bajada, W - 2*M, FTI_R, 12)[:2]:
-            if by < CUERPO_Y + 30*mm: break
-            c.drawCentredString(W/2, by, bl)
-            by -= 6*mm
+        for bl_ln in wrap_lines(c, bajada, W - 2*M, FTI_R, 10)[:3]:
+            if by < CUERPO_Y + 25*mm: break
+            c.drawCentredString(W/2, by, bl_ln)
+            by -= 5*mm
 
         cuerpo_start = by - 4*mm
 
-    # ── CUERPO: 2 columnas Merriweather-Regular 11pt interlineado 1.3
-    if cuerpo_start > CUERPO_Y + 10*mm:
-        lh     = 11 * 1.3 * 0.3528   # interlineado en mm
-        col_cw = COL2 - 3*mm
-        lines  = wrap_lines(c, cuerpo, col_cw, FTI_R, 11)
-        half   = max(1, len(lines) // 2)
-        # Separador central
-        c.setStrokeColorRGB(*GRIS_L)
-        c.setLineWidth(0.5)
-        c.line(W/2, cuerpo_start, W/2, CUERPO_Y)
-        for col_i in range(2):
-            cx2 = M if col_i == 0 else W/2 + 3*mm
-            cy2 = cuerpo_start
-            chunk = lines[:half] if col_i == 0 else lines[half:]
-            c.setFont(FTI_R, 11)
-            c.setFillColorRGB(*NEGRO)
-            for ln in chunk:
-                if cy2 < CUERPO_Y: break
-                c.drawString(cx2, cy2, ln)
-                cy2 -= lh*mm
+    # ── CUERPO: 2 columnas ───────────────────────────────────────────────────
+    if cuerpo and cuerpo_start > CUERPO_Y + 15*mm:
+        col_cw  = COL2 - 4*mm
+        x_col1  = M
+        x_col2  = M + COL2 + 4*mm
+        desborde = draw_cuerpo_2col(
+            c, cuerpo,
+            x_col1, x_col2,
+            cuerpo_start, CUERPO_Y,
+            col_cw, FUI_B, BODY_PTS, BODY_LH
+        )
+        if desborde:
+            c.setFont(FUI_R, 8)
+            c.setFillColorRGB(*AZUL_INST)
+            c.drawCentredString(W/2, CUERPO_Y + 1*mm,
+                                ">> Mira la NOTA completa en nuestro Portal: diarioinfo.com")
 
-    # ── PIE ──────────────────────────────────────────────────────
-    c.setStrokeColorRGB(*GRIS_L)
-    c.setLineWidth(0.5)
-    c.line(M, PIE_Y - 2*mm, W - M, PIE_Y - 2*mm)
-    c.setFont(FUI_R, 9)
-    c.setFillColorRGB(*GRIS_TXT)
-    c.drawString(M,          PIE_Y - 6*mm, "www.diarioinfo.com.ar")
-    c.drawRightString(W - M, PIE_Y - 6*mm, "Edición Impresa  •  Santiago del Estero")
+    # Pie
+    draw_pie(c, W, M, PIE_Y - 4*mm)
+
+
 def generar_flipbook(pdf_url, fecha_str):
     titulo = f"Diario Info - Edicion {fecha_str}"
     flip_html = f"""<!DOCTYPE html>
@@ -890,7 +929,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.19 ===")
+    print("=== Diario Info PDF Generator v3.20 ===")
     print(f"Fecha: {FECHA_STR}")
     # Diagnostico rutas
     import glob as _glob
@@ -925,7 +964,7 @@ def main():
     generar_tapa(cv, notas, of, bl, clima)
     cv.showPage()
     
-    for i, nota in enumerate(notas[1:], start=2):
+    for i, nota in enumerate([notas[0]] + notas[1:], start=2):
         print(f"Pagina {i}: {nota['title'][:45]}...")
         generar_pagina_interior(cv, nota, i)
         cv.showPage()
