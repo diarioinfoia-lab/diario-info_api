@@ -479,14 +479,16 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     c.rect(0, 0, W, H, fill=1, stroke=0)
 
     # ── CABECERA (Y absoluto) ────────────────────────────────────
-    dia_semana = HOY.strftime("%A").capitalize()
-    mes        = HOY.strftime("%B").capitalize()
+    DIAS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+    MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"]
+    dia_semana = DIAS_ES[HOY.weekday()]
+    mes        = MESES_ES[HOY.month - 1]
     fecha_txt  = f"{dia_semana} {HOY.day} de {mes} de {HOY.year}"
     cli_txt    = f"{clima}" if clima else ""
     cot_txt    = ""
     if cotiz_of: cot_txt += f"  |  Oficial: {cotiz_of}"
     if cotiz_bl: cot_txt += f"  |  Blue: {cotiz_bl}"
-    cab_line   = f"{fecha_txt}  |  Santiago del Estero {cli_txt}{cot_txt}"
+    cab_line   = f"{fecha_txt}  |  {cli_txt}{cot_txt}" if cli_txt else f"{fecha_txt}  |  Santiago del Estero{cot_txt}"
     c.setFont(FUI_R, 9)
     c.setFillColorRGB(*GRIS_TXT)
     c.drawCentredString(W/2, H - 6*mm, cab_line)
@@ -685,8 +687,10 @@ def generar_pagina_interior(c, nota, num_pag):
     c.rect(0, 0, W, H, fill=1, stroke=0)
 
     # ── CABECERA ─────────────────────────────────────────────────
-    dia_semana = HOY.strftime("%A").capitalize()
-    mes        = HOY.strftime("%B").capitalize()
+    DIAS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+    MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"]
+    dia_semana = DIAS_ES[HOY.weekday()]
+    mes        = MESES_ES[HOY.month - 1]
     fecha_txt  = f"{dia_semana} {HOY.day} de {mes} de {HOY.year}"
     cab_txt    = f"{fecha_txt}  |  Santiago del Estero  |  diarioinfo.com  |  Pag. {num_pag}"
     c.setFont(FUI_R, 9)
