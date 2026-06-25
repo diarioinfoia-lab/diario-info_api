@@ -644,10 +644,10 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         ir_p, iw_p, ih_p = get_image_data(img_url)
         ratio_p = (iw_p / ih_p) if ih_p > 0 else 0
 
-        # ── LAYOUT A: ratio >= 1.5 (apaisada / panoramica) ──────────────────────
+        # ── LAYOUT A: ratio >= 1.45 (apaisada 3:2, 16:9) ────────────────────────
         # Foto ocupa las 2 columnas (ancho completo de pagina)
         # Titulo completo debajo de la foto
-        if ratio_p >= 1.5:
+        if ratio_p >= 1.45:
             IMG_W  = W               # full bleed
             IMG_H  = IMG_W * (9.0/16.0)
             IMG_X  = 0
@@ -692,12 +692,11 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             IMG_BOT = IMG_TOP - IMG_H
             draw_image_bleed(c, ir_p, iw_p, ih_p, IMG_X, IMG_BOT, IMG_W, IMG_H)
 
-            # Titulo columna derecha, arranca al mismo Y que la foto
+            # Titulo columna derecha, arranca al mismo Y que la foto (alineado top)
             TIT_X = M + COL2 + 3*mm
-            TIT_W = COL2 - 3*mm
-            ty    = IMG_TOP
-            draw_categoria_banda(c, cat, TIT_X, ty - 6*mm, TIT_W, FUI_B)
-            ty -= 8*mm
+            TIT_W = COL2 * 0.75          # 75% del ancho de columna
+            ty    = IMG_TOP - TIT_LH     # baseline primera linea = top imagen
+            draw_categoria_banda(c, cat, TIT_X, IMG_TOP - 6*mm, TIT_W, FUI_B)
             c.setFont(FTI_B, TIT_PTS)
             c.setFillColorRGB(*NEGRO)
             for ln in wrap_lines(c, titulo, TIT_W, FTI_B, TIT_PTS):
@@ -808,8 +807,8 @@ def generar_pagina_interior(c, nota, num_pag):
     PIE_Y  = 18*mm
     CUERPO_Y = PIE_Y + 6*mm
 
-    # ── LAYOUT A: ratio >= 1.5 (apaisada) ────────────────────────────────────
-    if ratio_n >= 1.5:
+    # ── LAYOUT A: ratio >= 1.45 (apaisada 3:2, 16:9) ──────────────────────────
+    if ratio_n >= 1.45:
         IMG_W  = W
         IMG_H  = IMG_W * (9.0/16.0)
         IMG_X  = 0
@@ -846,10 +845,10 @@ def generar_pagina_interior(c, nota, num_pag):
         IMG_BOT = IMG_TOP - IMG_H
         draw_image_bleed(c, ir_n, iw_n, ih_n, IMG_X, IMG_BOT, IMG_W, IMG_H)
 
-        # Titulo columna derecha, arranca al mismo Y que la foto
+        # Titulo columna derecha, arranca al mismo Y que la foto (alineado top)
         TIT_X = M + COL2 + 3*mm
-        TIT_W = COL2 - 3*mm
-        ty    = IMG_TOP
+        TIT_W = COL2 * 0.75          # 75% del ancho de columna
+        ty    = IMG_TOP - TIT_LH     # baseline primera linea = top imagen
         c.setFont(FTI_B, TIT_PTS)
         c.setFillColorRGB(*NEGRO)
         for ln in wrap_lines(c, titulo, TIT_W, FTI_B, TIT_PTS):
@@ -877,7 +876,7 @@ def generar_pagina_interior(c, nota, num_pag):
             c, cuerpo,
             x_col1, x_col2,
             cuerpo_start, CUERPO_Y,
-            col_cw, FUI_B, BODY_PTS, BODY_LH
+            col_cw, FUI_R, BODY_PTS, BODY_LH
         )
         if desborde:
             c.setFont(FUI_R, 8)
