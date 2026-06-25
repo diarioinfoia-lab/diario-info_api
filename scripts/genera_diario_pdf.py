@@ -59,6 +59,7 @@ FONT_T    = "Helvetica"         # Lato-Regular cuando disponible
 FONT_N    = "Helvetica"         # Lato-Regular
 FONT_MBold = "Helvetica-Bold"   # Merriweather-Bold cuando disponible
 FONT_MReg  = "Helvetica"        # Merriweather-Regular cuando disponible
+FONT_BN    = "Helvetica-Bold"   # Bebas Neue cuando disponible
 
 URLS_FUENTES = {
     "Lato-Regular":        "https://github.com/google/fonts/raw/main/ofl/lato/Lato-Regular.ttf",
@@ -66,6 +67,7 @@ URLS_FUENTES = {
     "Lato-Italic":         "https://github.com/google/fonts/raw/main/ofl/lato/Lato-Italic.ttf",
     "Merriweather-Bold":   "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/merriweather/static/Merriweather-Bold.ttf",
     "Merriweather-Regular":"https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/merriweather/static/Merriweather-Regular.ttf",
+    "BebasNeue":            "https://github.com/google/fonts/raw/main/ofl/bebasneue/BebasNeue-Regular.ttf",
 }
 
 # -- Variables globales --
@@ -93,6 +95,7 @@ def instalar_fuentes():
     if "Lato-Regular"          in FUENTES_OK: FONT_T     = "Lato-Regular"; FONT_N = "Lato-Regular"
     if "Merriweather-Bold"     in FUENTES_OK: FONT_MBold = "Merriweather-Bold"
     if "Merriweather-Regular"  in FUENTES_OK: FONT_MReg  = "Merriweather-Regular"
+    if "BebasNeue"             in FUENTES_OK: FONT_BN    = "BebasNeue"
     print(f"Fuentes OK: {FUENTES_OK}")
 
 def conectar_mongo():
@@ -581,12 +584,12 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
 
             # Titular: Merriweather-Bold 22pt negro centrado
             ty = HERO_BOT - 8*mm
-            c.setFont(FTI_B, 33)
+            c.setFont(FONT_BN, 42)
             c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, W - 2*M, FTI_B, 33)[:3]:
+            for ln in wrap_lines(c, titulo, W - 2*M, FONT_BN, 42)[:4]:
                 if ty < Y_SEC_TOP + baj_h + 4*mm: break
                 c.drawCentredString(W/2, ty, ln)
-                ty -= 14*mm
+                ty -= 42 * 1.2 * 0.3528 * mm
 
             # Bajada: Merriweather-Regular 12pt gris centrada
             c.setFont(FTI_R, 12)
@@ -595,6 +598,11 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
                 if ty < Y_SEC_TOP + 2*mm: break
                 c.drawCentredString(W/2, ty, bl)
                 ty -= 6*mm
+            # Linea separadora gris
+            sep_y_a = ty - 3*mm
+            c.setStrokeColorRGB(*GRIS_L)
+            c.setLineWidth(0.5)
+            c.line(M, sep_y_a, W - M, sep_y_a)
 
         # --- LAYOUT B: ratio < 1.5 (cuadrada, portrait, 4:3) ---
         # Foto columna izquierda (col 1)
@@ -616,12 +624,12 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             TIT_X    = M + COL2 + 3*mm
             TIT_W    = COL2 - 3*mm
             ty       = IMG_TOP - 2*mm
-            c.setFont(FTI_B, 33)
+            c.setFont(FONT_BN, 42)
             c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, TIT_W, FTI_B, 33)[:4]:
-                if ty < IMG_BOT: break
+            for ln in wrap_lines(c, titulo, TIT_W, FONT_BN, 42)[:5]:
+                if ty < IMG_BOT - 10*mm: break
                 c.drawString(TIT_X, ty, ln)
-                ty -= 14*mm
+                ty -= 42 * 1.2 * 0.3528 * mm
 
             # Bajada: ancho completo debajo de la foto
             by = IMG_BOT - 5*mm
@@ -631,6 +639,11 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
                 if by < Y_SEC_TOP + 2*mm: break
                 c.drawCentredString(W/2, by, bl)
                 by -= 6*mm
+        # Linea separadora gris
+        sep_y_b = by - 3*mm
+        c.setStrokeColorRGB(*GRIS_L)
+        c.setLineWidth(0.5)
+        c.line(M, sep_y_b, W - M, sep_y_b)
 
     # ── NOTAS SECUNDARIAS - 3 columnas ────────────────────────
     notas_sec = notas[1:4]
@@ -666,12 +679,12 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         # Titular: Merriweather-Bold 22pt negro (fuerza de diseno)
         tit_s = limpiar_html(ns.get("title", ""))
         ty_s  = img_top_s - img_h_sec - 4*mm
-        c.setFont(FTI_B, 18)
+        c.setFont(FONT_BN, 28)
         c.setFillColorRGB(*NEGRO)
-        for tsl in wrap_lines(c, tit_s, col_w - 2*pad, FTI_B, 18)[:3]:
+        for tsl in wrap_lines(c, tit_s, col_w - 2*pad, FONT_BN, 28)[:4]:
             if ty_s < sec_bot + 2*mm: break
             c.drawString(cx + pad, ty_s, tsl)
-            ty_s -= 7.5*mm
+            ty_s -= 28 * 1.2 * 0.3528 * mm
         # Bajada: Lato-Regular 9pt #666666
         baj_s = limpiar_html(ns.get("summary", "") or ns.get("content", ""))
         c.setFont(FUI_R, 9)
@@ -760,12 +773,12 @@ def generar_pagina_interior(c, nota, num_pag):
 
         # Titular Merriweather-Bold 18pt centrado
         ty = IMG_BOT - 7*mm
-        c.setFont(FTI_B, 18)
+        c.setFont(FONT_BN, 36)
         c.setFillColorRGB(*NEGRO)
-        for ln in wrap_lines(c, titulo, W - 2*M, FTI_B, 18)[:3]:
+        for ln in wrap_lines(c, titulo, W - 2*M, FONT_BN, 36)[:4]:
             if ty < CUERPO_Y: break
             c.drawCentredString(W/2, ty, ln)
-            ty -= 8*mm
+            ty -= 36 * 1.2 * 0.3528 * mm
 
         # Bajada Merriweather-Regular 12pt gris centrada
         ty -= 2*mm
@@ -795,12 +808,12 @@ def generar_pagina_interior(c, nota, num_pag):
         TIT_X   = M + COL2 + 3*mm
         TIT_W   = COL2 - 3*mm
         ty      = IMG_TOP - 2*mm
-        c.setFont(FTI_B, 18)
+        c.setFont(FONT_BN, 36)
         c.setFillColorRGB(*NEGRO)
-        for ln in wrap_lines(c, titulo, TIT_W, FTI_B, 18)[:4]:
-            if ty < IMG_BOT: break
+        for ln in wrap_lines(c, titulo, TIT_W, FONT_BN, 36)[:5]:
+            if ty < IMG_BOT - 20*mm: break
             c.drawString(TIT_X, ty, ln)
-            ty -= 8*mm
+            ty -= 36 * 1.2 * 0.3528 * mm
 
         # Bajada ancho completo debajo de foto
         by = IMG_BOT - 5*mm
@@ -877,7 +890,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.17 ===")
+    print("=== Diario Info PDF Generator v3.18 ===")
     print(f"Fecha: {FECHA_STR}")
     # Diagnostico rutas
     import glob as _glob
