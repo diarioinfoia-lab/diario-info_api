@@ -242,10 +242,15 @@ def get_image_data(url):
     if not url: return None, 0, 0
     # Intentar ruta local primero (ia.diarioinfo.com puede ser local)
     if 'ia.diarioinfo.com/uploads/' in str(url):
-        local_path_base = '/home/iadiarioinfo/public_html/uploads/'
-        local_path_base2 = '/home/diarioin/public_html/ia-uploads/'
+        local_path_bases = [
+            '/home/iadiarioinfo/public_html/uploads/',
+            '/home/diarioin/public_html/ia-uploads/',
+            '/home/diarioin/ia-uploads/',
+            '/home/diarioin/public_html/uploads/',
+            '/var/www/ia.diarioinfo.com/uploads/',
+        ]
         url_path = str(url).split('/uploads/')[-1]
-        for lp in [local_path_base + url_path, local_path_base2 + url_path]:
+        for lp in [b + url_path for b in local_path_bases]:
             if os.path.exists(lp):
                 try:
                     ir_l = ImageReader(lp)
@@ -832,8 +837,12 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.5 ===")
+    print("=== Diario Info PDF Generator v3.8 ===")
     print(f"Fecha: {FECHA_STR}")
+    # Diagnostico rutas
+    import glob as _glob
+    _homes = _glob.glob("/home/*/public_html/uploads") + _glob.glob("/home/*/uploads") + _glob.glob("/home/*/")
+    print(f"  [diag] /home dirs: {_homes[:5]}")
     
     print("Instalando fuentes...")
     instalar_fuentes()
