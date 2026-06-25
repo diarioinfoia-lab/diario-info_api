@@ -306,16 +306,20 @@ def get_image_data(url):
             req  = urllib.request.Request(try_url, headers=headers)
             data = urllib.request.urlopen(req, timeout=15).read()
             # Convertir con Pillow si es necesario (avif, jfif, etc.)
+            # y redimensionar si es demasiado grande (max 1800px)
             try:
-                ir = ImageReader(io.BytesIO(data))
-                iw, ih = ir.getSize()
-            except Exception:
                 from PIL import Image as _PILImage
                 _img = _PILImage.open(io.BytesIO(data)).convert('RGB')
+                _max = 1800
+                if _img.width > _max or _img.height > _max:
+                    _img.thumbnail((_max, _max), _PILImage.LANCZOS)
                 _buf = io.BytesIO()
-                _img.save(_buf, format='JPEG', quality=85)
+                _img.save(_buf, format='JPEG', quality=82)
                 _buf.seek(0)
                 ir = ImageReader(_buf)
+                iw, ih = ir.getSize()
+            except Exception:
+                ir = ImageReader(io.BytesIO(data))
                 iw, ih = ir.getSize()
             print(f"  [img OK] {iw}x{ih} desde {try_url[:60]}")
             return ir, iw, ih
@@ -873,7 +877,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.16 ===")
+    print("=== Diario Info PDF Generator v3.17 ===")
     print(f"Fecha: {FECHA_STR}")
     # Diagnostico rutas
     import glob as _glob
