@@ -134,8 +134,7 @@ def obtener_url_imagen(image_id):
         if f:
             url = f.get("fileUrl") or f.get("url") or ""
             if url and url.startswith("/"): url = BASE_IMG_URL + url
-            # Encode espacios y caracteres especiales en la URL
-            url = urllib.parse.quote(url, safe=":/?=&%")
+            # URL directa desde MongoDB - no re-encodear
             print(f"  [url] {str(url)[:100]}")
             return url
     except Exception as e:
@@ -231,13 +230,26 @@ def get_image_data(url):
     if not url: return None, 0, 0
     print(f"  [img] Descargando: {str(url)[:80]}")
     try:
-        req  = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 DiarioInfo-PDF/1.6"})
+        req  = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Referer": "https://diarioinfo.com/", "Accept": "image/webp,image/apng,image/*,*/*;q=0.8"})
         data = urllib.request.urlopen(req, timeout=12).read()
         ir   = ImageReader(io.BytesIO(data))
         iw, ih = ir.getSize()
         return ir, iw, ih
     except Exception as e:
-        print(f"  [img ERROR] {str(url)}: {e}")
+        print(f"  [img urllib ERROR] {str(url)}: {e}")
+        # Fallback: usar curl
+        try:
+            import subprocess, tempfile
+            tf = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+            tf.close()
+            r = subprocess.run(["curl", "-fsSL", "--max-time", "15", "-A", "Mozilla/5.0", "-e", "https://diarioinfo.com/", "-o", tf.name, str(url)], capture_output=True, timeout=20)
+            if r.returncode == 0:
+                ir2 = ImageReader(tf.name)
+                iw2, ih2 = ir2.getSize()
+                print(f"  [img curl OK] {iw2}x{ih2}")
+                return ir2, iw2, ih2
+        except Exception as e2:
+            print(f"  [img curl ERROR] {e2}")
         return None, 0, 0
 
 def draw_image_bleed(c, ir, iw, ih, box_x, box_y, box_w, box_h):
