@@ -127,28 +127,40 @@ def obtener_nombre_categoria(cat_id):
         return cat_str.upper()
     return "GENERAL"
 
-def obtener_url_imagen(image_id):
+def obtener_url_imagen(image_id, pub_date=None):
+    """Construye URL de imagen desde MongoDB.
+    URL correcta: http://www.diarioinfo.com/sistema/entidades/[dd-mm-yyyy]/[filename]
+    """
     if not image_id or db_global is None: return ""
     try:
         f = db_global["files"].find_one({"_id": ObjectId(str(image_id))})
         if f:
-            raw_url = f.get("fileUrl") or f.get("url") or ""
+            raw_url = f.get("fileUrl") or f.get("url") or f.get("filename") or ""
             if not raw_url: return ""
-            # Si la URL es solo un path, agregar dominio
-            if raw_url.startswith("/"):
-                # Encodear espacios y chars especiales en el path
-                encoded_path = urllib.parse.quote(raw_url, safe='/')
-                url = BASE_IMG_URL + encoded_path
-            elif raw_url.startswith("http"):
-                # Encodear solo la parte del path de la URL completa
-                from urllib.parse import urlsplit, urlunsplit
-                parts = urlsplit(raw_url)
-                encoded_path = urllib.parse.quote(parts.path, safe='/')
-                url = urlunsplit((parts.scheme, parts.netloc, encoded_path, parts.query, parts.fragment))
+            # Extraer filename: "2026-06-25T01-53-23-153Z-PVPQ7T....jpg" -> "PVPQ7T....jpg"
+            # El patron es: [timestamp]-[filename] donde timestamp = YYYY-MM-DDTHH-MM-SS-mmmZ
+            import re as _re
+            fname = raw_url.split('/')[-1]  # basename
+            # Quitar prefijo timestamp: "2026-06-25T01-53-23-153Z-"
+            fname = _re.sub(r'^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+Z-', '', fname)
+            # Fecha de publicacion en formato dd-mm-yyyy
+            if pub_date:
+                fecha_str = pub_date.strftime("%d-%m-%Y")
             else:
-                url = raw_url
-            print(f"  [url] {url[:100]}")
-            return url
+                fecha_str = HOY.strftime("%d-%m-%Y")
+            base_url = "http://www.diarioinfo.com/sistema/entidades/" + fecha_str + "/"
+            # Probar diferentes extensiones
+            stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
+            ext = fname.rsplit('.', 1)[1].lower() if '.' in fname else 'jpg'
+            exts_to_try = [ext, 'webp', 'jpg', 'jpeg', 'png']
+            seen = set()
+            for try_ext in exts_to_try:
+                if try_ext in seen: continue
+                seen.add(try_ext)
+                try_fname = urllib.parse.quote(stem + '.' + try_ext, safe='')
+                url = base_url + try_fname
+                print(f"  [url] Intentando: {url[:100]}")
+                return url  # retornamos la primera (la mas probable) y get_image_data probara las demas
     except Exception as e:
         print(f"  Error imagen {image_id}: {e}")
     return ""
@@ -174,10 +186,11 @@ def obtener_notas(limite=15):
     result = []
     for n in notas:
         _raw_img = n.get("image", "") or ""
-        if _raw_img and _raw_img.startswith("http"):
+        _pub_date = n.get("publicationDate", HOY)
+        if _raw_img and str(_raw_img).startswith("http") and "ia.diarioinfo.com" not in str(_raw_img):
             img_url = _raw_img
         else:
-            img_url = obtener_url_imagen(n.get("imageId") or n.get("image"))
+            img_url = obtener_url_imagen(n.get("imageId") or n.get("image"), pub_date=_pub_date)
         cat_name = obtener_nombre_categoria(n.get("category"))
         result.append({
             "title":    limpiar_html(n.get("title", "")),
@@ -240,58 +253,41 @@ def draw_text_center(c, texto, cx, y, ancho, fuente, pts, color, max_lineas=99, 
 def get_image_data(url):
     """Descarga imagen y retorna (ImageReader, width_px, height_px) o (None,0,0)"""
     if not url: return None, 0, 0
-    # Intentar ruta local primero (ia.diarioinfo.com puede ser local)
-    if 'ia.diarioinfo.com/uploads/' in str(url):
-        local_path_bases = [
-            '/home/iadiarioinfo/public_html/uploads/',
-            '/home/diarioin/public_html/ia-uploads/',
-            '/home/diarioin/ia-uploads/',
-            '/home/diarioin/public_html/uploads/',
-            '/var/www/ia.diarioinfo.com/uploads/',
-        ]
-        url_path = str(url).split('/uploads/')[-1]
-        for lp in [b + url_path for b in local_path_bases]:
-            if os.path.exists(lp):
-                try:
-                    ir_l = ImageReader(lp)
-                    iw_l, ih_l = ir_l.getSize()
-                    print(f"  [img local OK] {lp} {iw_l}x{ih_l}")
-                    return ir_l, iw_l, ih_l
-                except Exception as el:
-                    print(f"  [img local ERR] {lp}: {el}")
-    print(f"  [img] Descargando: {str(url)[:80]}")
-    try:
-        req  = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Referer": "https://diarioinfo.com/", "Accept": "image/webp,image/apng,image/*,*/*;q=0.8"})
-        data = urllib.request.urlopen(req, timeout=12).read()
-        ir   = ImageReader(io.BytesIO(data))
-        iw, ih = ir.getSize()
-        return ir, iw, ih
-    except Exception as e:
-        print(f"  [img urllib ERROR] {str(url)}: {e}")
-        # Fallback: curl con diferentes opciones
+    # Si URL tiene ia.diarioinfo.com, convertir al sistema correcto
+    url = str(url)
+    if 'ia.diarioinfo.com/uploads/' in url:
+        # Construir URL alternativa con sistema/entidades
+        import re as _re
+        fname = url.split('/uploads/')[-1]
+        fname = _re.sub(r'^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+Z-', '', fname)
+        fecha_str = HOY.strftime("%d-%m-%Y")
+        url = "http://www.diarioinfo.com/sistema/entidades/" + fecha_str + "/" + urllib.parse.quote(fname, safe='')
+        print(f"  [img] URL convertida a: {url[:100]}")
+    # Lista de URLs a intentar (con variantes de extension)
+    urls_to_try = [url]
+    if '.' in url.split('/')[-1]:
+        stem_url = url.rsplit('.', 1)[0]
+        ext = url.rsplit('.', 1)[1].lower()
+        for alt_ext in ['webp', 'jpg', 'jpeg', 'png']:
+            if alt_ext != ext:
+                urls_to_try.append(stem_url + '.' + alt_ext)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "http://www.diarioinfo.com/",
+        "Accept": "image/webp,image/jpeg,image/*,*/*;q=0.8"
+    }
+    for try_url in urls_to_try:
         try:
-            import subprocess, tempfile, os as _os
-            tf = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-            tf.close()
-            curl_cmd = ["curl", "-fsSL", "--max-time", "20",
-                "--user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
-                "--referer", "https://diarioinfo.com/",
-                "--header", "Accept: image/webp,image/jpeg,image/*,*/*",
-                "--header", "Accept-Language: es-AR,es;q=0.9",
-                "--compressed",
-                "-o", tf.name, str(url)]
-            r = subprocess.run(curl_cmd, capture_output=True, timeout=25)
-            print(f"  [img curl rc={r.returncode}] size={_os.path.getsize(tf.name) if _os.path.exists(tf.name) else 0}")
-            if r.returncode == 0 and _os.path.exists(tf.name) and _os.path.getsize(tf.name) > 100:
-                ir2 = ImageReader(tf.name)
-                iw2, ih2 = ir2.getSize()
-                print(f"  [img curl OK] {iw2}x{ih2}")
-                return ir2, iw2, ih2
-            else:
-                print(f"  [img curl stderr] {r.stderr[:200]}")
-        except Exception as e2:
-            print(f"  [img curl ERROR] {e2}")
-        return None, 0, 0
+            print(f"  [img] Descargando: {try_url[:90]}")
+            req  = urllib.request.Request(try_url, headers=headers)
+            data = urllib.request.urlopen(req, timeout=15).read()
+            ir   = ImageReader(io.BytesIO(data))
+            iw, ih = ir.getSize()
+            print(f"  [img OK] {iw}x{ih} desde {try_url[:60]}")
+            return ir, iw, ih
+        except Exception as e:
+            print(f"  [img ERR] {try_url[:80]}: {str(e)[:60]}")
+    return None, 0, 0
 
 def draw_image_bleed(c, ir, iw, ih, box_x, box_y, box_w, box_h):
     """Dibuja imagen con SANGRADO: escala al factor mayor para cubrir
