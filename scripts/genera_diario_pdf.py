@@ -16,33 +16,6 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
-# ── AUTO-UPDATE desde GitHub ──────────────────────────────────────────────────
-def _self_update():
-    """Descarga la version mas reciente del script desde GitHub y se reinicia."""
-    _GITHUB_URL = 'https://raw.githubusercontent.com/diarioinfoia-lab/diario-info_api/master/scripts/genera_diario_pdf.py'
-    _THIS_FILE  = os.path.abspath(__file__)
-    _TMP_FILE   = _THIS_FILE + '.new'
-    try:
-        req  = urllib.request.Request(_GITHUB_URL, headers={"User-Agent": "DiarioInfo-AutoUpdate/1.0"})
-        data = urllib.request.urlopen(req, timeout=20).read()
-        if len(data) > 10000:  # archivo valido
-            # Leer primera linea para verificar que es Python
-            if data.startswith(b'#!/'):
-                with open(_TMP_FILE, 'wb') as f:
-                    f.write(data)
-                os.replace(_TMP_FILE, _THIS_FILE)
-                print(f"  [auto-update] Script actualizado ({len(data)} bytes). Reiniciando...")
-                os.execv(sys.executable, [sys.executable] + sys.argv)
-            else:
-                print(f"  [auto-update] Descarga invalida (no es Python), abortando update")
-        else:
-            print(f"  [auto-update] Descarga muy pequena ({len(data)} bytes), abortando update")
-    except Exception as e:
-        print(f"  [auto-update] Error: {e}")
-
-_self_update()
-# ── FIN AUTO-UPDATE ────────────────────────────────────────────────────────────
-
 
 # ── Configuracion MongoDB ──────────────────────────────────────────────────────
 URI_PRIMARY  = "mongodb+srv://diarioinfoio_db_user:lYcxG4pf5oCOgYnq@cluster0.c621o4c.mongodb.net/diarioinfo-db?retryWrites=true&w=majority"
@@ -91,9 +64,13 @@ URLS_FUENTES = {
     "Lato-Regular":        "https://github.com/google/fonts/raw/main/ofl/lato/Lato-Regular.ttf",
     "Lato-Bold":           "https://github.com/google/fonts/raw/main/ofl/lato/Lato-Bold.ttf",
     "Lato-Italic":         "https://github.com/google/fonts/raw/main/ofl/lato/Lato-Italic.ttf",
-    "Merriweather-Bold":   "https://github.com/google/fonts/raw/main/ofl/merriweather/Merriweather-Bold.ttf",
-    "Merriweather-Regular":"https://github.com/google/fonts/raw/main/ofl/merriweather/Merriweather-Regular.ttf",
+    "Merriweather-Bold":   "https://github.com/google/fonts/raw/main/ofl/merriweather/static/Merriweather-Bold.ttf",
+    "Merriweather-Regular":"https://github.com/google/fonts/raw/main/ofl/merriweather/static/Merriweather-Regular.ttf",
 }
+
+# -- Variables globales --
+db_global  = None
+cat_cache  = {}
 
 def instalar_fuentes():
     global FONT_TB, FONT_T, FONT_N, FONT_MBold, FONT_MReg, FUENTES_OK
