@@ -155,6 +155,11 @@ def obtener_url_imagen(image_id, pub_date=None):
                 fecha_str = (HOY - _td3(days=1)).strftime("%d-%m-%Y")
             base_url = "http://www.diarioinfo.com/sistema/entidades/" + fecha_str + "/"
             # Probar diferentes extensiones
+            # Fix mojibake: si MongoDB retorno bytes UTF-8 como Latin-1
+            try:
+                fname = fname.encode('latin-1').decode('utf-8')
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                pass
             stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
             ext = fname.rsplit('.', 1)[1].lower() if '.' in fname else 'jpg'
             exts_to_try = [ext, 'webp', 'jpg', 'jpeg', 'png']
@@ -162,7 +167,7 @@ def obtener_url_imagen(image_id, pub_date=None):
             for try_ext in exts_to_try:
                 if try_ext in seen: continue
                 seen.add(try_ext)
-                try_fname = urllib.parse.quote(urllib.parse.unquote(stem) + '.' + try_ext, safe='')
+                try_fname = urllib.parse.quote(stem + '.' + try_ext, safe='')
                 url = base_url + try_fname
                 print(f"  [url] Intentando: {url[:100]}")
                 return url  # retornamos la primera (la mas probable) y get_image_data probara las demas
@@ -858,7 +863,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.13 ===")
+    print("=== Diario Info PDF Generator v3.14 ===")
     print(f"Fecha: {FECHA_STR}")
     # Diagnostico rutas
     import glob as _glob
