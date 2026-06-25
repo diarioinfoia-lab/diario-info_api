@@ -305,8 +305,18 @@ def get_image_data(url):
             print(f"  [img] Descargando: {try_url[:90]}")
             req  = urllib.request.Request(try_url, headers=headers)
             data = urllib.request.urlopen(req, timeout=15).read()
-            ir   = ImageReader(io.BytesIO(data))
-            iw, ih = ir.getSize()
+            # Convertir con Pillow si es necesario (avif, jfif, etc.)
+            try:
+                ir = ImageReader(io.BytesIO(data))
+                iw, ih = ir.getSize()
+            except Exception:
+                from PIL import Image as _PILImage
+                _img = _PILImage.open(io.BytesIO(data)).convert('RGB')
+                _buf = io.BytesIO()
+                _img.save(_buf, format='JPEG', quality=85)
+                _buf.seek(0)
+                ir = ImageReader(_buf)
+                iw, ih = ir.getSize()
             print(f"  [img OK] {iw}x{ih} desde {try_url[:60]}")
             return ir, iw, ih
         except Exception as e:
@@ -863,7 +873,7 @@ a:hover{{background:#F47C20;color:#fff}}
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
-    print("=== Diario Info PDF Generator v3.15 ===")
+    print("=== Diario Info PDF Generator v3.16 ===")
     print(f"Fecha: {FECHA_STR}")
     # Diagnostico rutas
     import glob as _glob
