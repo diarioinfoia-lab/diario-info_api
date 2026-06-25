@@ -63,6 +63,12 @@ if ($python_ok && $script_ok) {
     if (!is_dir($log_dir)) { mkdir($log_dir, 0755, true); }
     // Limpiar log anterior
     file_put_contents($log_file, '--- Inicio: ' . date('Y-m-d H:i:s') . "\n");
+    // --- AUTO-UPDATE: descargar script actualizado de GitHub ---
+    $github_raw = 'https://raw.githubusercontent.com/diarioinfoia-lab/diario-info_api/master/scripts/genera_diario_pdf.py';
+    $update_cmd = "curl -fsSL '" . $github_raw . "' -o '" . $script_ok . "' 2>&1";
+    $update_out = shell_exec($update_cmd);
+    file_put_contents($log_file, "--- Auto-update script: " . $update_out . "\n", FILE_APPEND);
+    // --- FIN AUTO-UPDATE ---
     
     $cmd = $python_ok . ' ' . $script_ok . ' >> ' . $log_file . ' 2>&1';
     echo '<div class="box">';
