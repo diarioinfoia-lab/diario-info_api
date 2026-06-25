@@ -639,11 +639,11 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
                 if by < Y_SEC_TOP + 2*mm: break
                 c.drawCentredString(W/2, by, bl)
                 by -= 6*mm
-        # Linea separadora gris
-        sep_y_b = by - 3*mm
-        c.setStrokeColorRGB(*GRIS_L)
-        c.setLineWidth(0.5)
-        c.line(M, sep_y_b, W - M, sep_y_b)
+            # Linea separadora gris
+            sep_y_b = by - 3*mm
+            c.setStrokeColorRGB(*GRIS_L)
+            c.setLineWidth(0.5)
+            c.line(M, sep_y_b, W - M, sep_y_b)
 
     # ── NOTAS SECUNDARIAS - 3 columnas ────────────────────────
     notas_sec = notas[1:4]
