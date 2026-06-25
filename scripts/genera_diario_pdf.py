@@ -132,10 +132,22 @@ def obtener_url_imagen(image_id):
     try:
         f = db_global["files"].find_one({"_id": ObjectId(str(image_id))})
         if f:
-            url = f.get("fileUrl") or f.get("url") or ""
-            if url and url.startswith("/"): url = BASE_IMG_URL + url
-            # URL directa desde MongoDB - no re-encodear
-            print(f"  [url] {str(url)[:100]}")
+            raw_url = f.get("fileUrl") or f.get("url") or ""
+            if not raw_url: return ""
+            # Si la URL es solo un path, agregar dominio
+            if raw_url.startswith("/"):
+                # Encodear espacios y chars especiales en el path
+                encoded_path = urllib.parse.quote(raw_url, safe='/')
+                url = BASE_IMG_URL + encoded_path
+            elif raw_url.startswith("http"):
+                # Encodear solo la parte del path de la URL completa
+                from urllib.parse import urlsplit, urlunsplit
+                parts = urlsplit(raw_url)
+                encoded_path = urllib.parse.quote(parts.path, safe='/')
+                url = urlunsplit((parts.scheme, parts.netloc, encoded_path, parts.query, parts.fragment))
+            else:
+                url = raw_url
+            print(f"  [url] {url[:100]}")
             return url
     except Exception as e:
         print(f"  Error imagen {image_id}: {e}")
@@ -228,6 +240,20 @@ def draw_text_center(c, texto, cx, y, ancho, fuente, pts, color, max_lineas=99, 
 def get_image_data(url):
     """Descarga imagen y retorna (ImageReader, width_px, height_px) o (None,0,0)"""
     if not url: return None, 0, 0
+    # Intentar ruta local primero (ia.diarioinfo.com puede ser local)
+    if 'ia.diarioinfo.com/uploads/' in str(url):
+        local_path_base = '/home/iadiarioinfo/public_html/uploads/'
+        local_path_base2 = '/home/diarioin/public_html/ia-uploads/'
+        url_path = str(url).split('/uploads/')[-1]
+        for lp in [local_path_base + url_path, local_path_base2 + url_path]:
+            if os.path.exists(lp):
+                try:
+                    ir_l = ImageReader(lp)
+                    iw_l, ih_l = ir_l.getSize()
+                    print(f"  [img local OK] {lp} {iw_l}x{ih_l}")
+                    return ir_l, iw_l, ih_l
+                except Exception as el:
+                    print(f"  [img local ERR] {lp}: {el}")
     print(f"  [img] Descargando: {str(url)[:80]}")
     try:
         req  = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Referer": "https://diarioinfo.com/", "Accept": "image/webp,image/apng,image/*,*/*;q=0.8"})
