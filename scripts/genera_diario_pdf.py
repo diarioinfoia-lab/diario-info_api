@@ -631,7 +631,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     nota_p   = notas[0] if notas else None
     Y_EDIT   = Y_FIL - 3*mm
     PIE_H    = 14*mm
-    SEC_H    = 100*mm
+    SEC_H    = 85*mm
     Y_SEC_TOP = PIE_H + SEC_H
 
     if nota_p:
@@ -659,7 +659,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             draw_categoria_banda(c, cat, M, IMG_BOT - 7*mm, W - 2*M, FUI_B)
 
             # Titulo completo debajo de imagen (sin limite de lineas)
-            ty = IMG_BOT - 9*mm
+            ty = IMG_BOT - 16*mm
             c.setFont(FTI_B, TIT_PTS)
             c.setFillColorRGB(*NEGRO)
             for ln in wrap_lines(c, titulo, W - 2*M, FTI_B, TIT_PTS):
@@ -817,7 +817,7 @@ def generar_pagina_interior(c, nota, num_pag):
         draw_image_bleed(c, ir_n, iw_n, ih_n, IMG_X, IMG_BOT, IMG_W, IMG_H)
 
         # Titulo completo centrado debajo
-        ty = IMG_BOT - 6*mm
+        ty = IMG_BOT - 14*mm
         c.setFont(FTI_B, TIT_PTS)
         c.setFillColorRGB(*NEGRO)
         for ln in wrap_lines(c, titulo, W - 2*M, FTI_B, TIT_PTS):
@@ -881,8 +881,9 @@ def generar_pagina_interior(c, nota, num_pag):
         if desborde:
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
-            c.drawCentredString(W/2, CUERPO_Y + 1*mm,
-                                ">> Mira la NOTA completa en nuestro Portal: diarioinfo.com")
+            _mira_txt = ">> Mira la NOTA completa en nuestro Portal: diarioinfo.com"
+            _mira_w   = c.stringWidth(_mira_txt, FUI_R, 8)
+            c.drawString(x_col2 + col_cw - _mira_w, CUERPO_Y + 5*mm, _mira_txt)
 
     # Pie
     draw_pie(c, W, M, PIE_Y - 4*mm)
