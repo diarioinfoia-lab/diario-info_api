@@ -187,14 +187,14 @@ def obtener_notas(limite=15):
 
     cursor = db["articles"].find(
         {"status": "published", "publicationDate": {"$gte": ayer_inicio, "$lte": hoy_fin}}
-    ).sort([("priority", -1), ("publicationDate", -1)]).limit(limite)
+    ).sort([("publicationDate", -1), ("priority", -1)]).limit(limite)
     notas = list(cursor)
 
     if len(notas) < limite:
         cinco_dias = ayer_inicio - timedelta(days=4)
         cursor2 = db["articles"].find(
             {"status": "published", "publicationDate": {"$gte": cinco_dias, "$lte": hoy_fin}}
-        ).sort([("priority", -1), ("publicationDate", -1)]).limit(limite)
+        ).sort([("publicationDate", -1), ("priority", -1)]).limit(limite)
         notas = list(cursor2)
     
     result = []
@@ -221,7 +221,7 @@ def obtener_notas(limite=15):
         })
     print(f"Notas obtenidas: {len(result)}")
     for i, r in enumerate(result[:4]):
-        print(f"  {i}: [{r['priority']}] [{r['category']}] {r['title'][:45]}")
+        print(f"  {i}: [{r['priority']}] [{r['category']}] {r['date'].strftime('%d/%m %H:%M') if hasattr(r['date'],'strftime') else str(r['date'])[:10]} - {r['title'][:40]}")
         print(f"       img={r['img_url'][:60] if r['img_url'] else 'NONE'}")
     return result
 
