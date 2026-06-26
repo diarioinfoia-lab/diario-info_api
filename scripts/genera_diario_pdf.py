@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Diario Info - Generador de PDF Edicion Impresa v3.1 - Layout adaptativo full-bleed, sin badge en tapa
+Diario Info - Generador de PDF Edicion Impresa v3.30 - Layout adaptativo full-bleed, sin badge en tapa
 Correcciones: lookup de categorias, URLs de imagenes correctas, clima en Celsius
 """
 
