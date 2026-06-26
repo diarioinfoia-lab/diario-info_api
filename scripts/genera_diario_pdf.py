@@ -178,21 +178,22 @@ def obtener_url_imagen(image_id, pub_date=None):
         print(f"  Error imagen {image_id}: {e}")
     return ""
 
-def obtener_notas(limite=15):
-    """Obtiene notas del dia actual con fallback a 3 dias"""
+def obtener_notas(limite=16):
+    """Obtiene notas: busca hoy + ayer (ajuste UTC-3), fallback 5 dias"""
     db = db_global
-    hoy_inicio = datetime(HOY.year, HOY.month, HOY.day, 0, 0, 0)
+    # Ajuste timezone AR (UTC-3): buscar desde ayer a las 21hs UTC = hoy 00hs AR
     hoy_fin    = datetime(HOY.year, HOY.month, HOY.day, 23, 59, 59)
-    
+    ayer_inicio = datetime(HOY.year, HOY.month, HOY.day, 0, 0, 0) - timedelta(days=1)
+
     cursor = db["articles"].find(
-        {"status": "published", "publicationDate": {"$gte": hoy_inicio, "$lte": hoy_fin}}
+        {"status": "published", "publicationDate": {"$gte": ayer_inicio, "$lte": hoy_fin}}
     ).sort([("priority", -1), ("publicationDate", -1)]).limit(limite)
     notas = list(cursor)
-    
-    if len(notas) < 4:
-        tres_dias = hoy_inicio - timedelta(days=3)
+
+    if len(notas) < limite:
+        cinco_dias = ayer_inicio - timedelta(days=4)
         cursor2 = db["articles"].find(
-            {"status": "published", "publicationDate": {"$gte": tres_dias, "$lte": hoy_fin}}
+            {"status": "published", "publicationDate": {"$gte": cinco_dias, "$lte": hoy_fin}}
         ).sort([("priority", -1), ("publicationDate", -1)]).limit(limite)
         notas = list(cursor2)
     
@@ -949,7 +950,7 @@ def main():
     conectar_mongo()
     
     print("Obteniendo notas...")
-    notas = obtener_notas(15)
+    notas = obtener_notas(16)
     if not notas:
         print("ERROR: Sin notas"); sys.exit(1)
     
