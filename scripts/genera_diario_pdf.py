@@ -178,7 +178,7 @@ def obtener_url_imagen(image_id, pub_date=None):
         print(f"  Error imagen {image_id}: {e}")
     return ""
 
-def obtener_notas(limite=16):
+def obtener_notas(limite=15):
     """Obtiene notas: busca hoy + ayer (ajuste UTC-3), fallback 5 dias"""
     db = db_global
     # Ajuste timezone AR (UTC-3): buscar desde ayer a las 21hs UTC = hoy 00hs AR
@@ -950,7 +950,7 @@ def main():
     conectar_mongo()
     
     print("Obteniendo notas...")
-    notas = obtener_notas(16)
+    notas = obtener_notas(15)
     if not notas:
         print("ERROR: Sin notas"); sys.exit(1)
     
