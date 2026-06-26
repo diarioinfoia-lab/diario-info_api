@@ -533,7 +533,10 @@ def wrap_paragraphs(c, texto, ancho, fuente, pts):
     result = []
     # Separar por punto y aparte: punto seguido de 2+ espacios o salto de linea
     import re as _re2
-    parrafos = _re2.split(r'\. {2,}|\n\n+', texto)
+    parrafos = _re2.split(r'\n', texto)
+    parrafos = [p.strip() for p in parrafos if p.strip()]
+    if len(parrafos) <= 1:
+        parrafos = _re2.split(r'\. {2,}|\n\n+', texto)
     if len(parrafos) <= 1:
         parrafos = [texto]
     for ip, parr in enumerate(parrafos):
@@ -568,6 +571,7 @@ def draw_cuerpo_2col(c, cuerpo, x_l1, x_l2, y_start, y_end, col_w, font_body, pt
                 desborde = True
                 break
             dx = indent if es_parr else 0
+            if es_parr: cy -= lh_body * 0.4  # espacio entre parrafos
             c.drawString(cx + dx, cy, ln)
             cy -= lh_body
     return desborde
@@ -883,7 +887,7 @@ def generar_pagina_interior(c, nota, num_pag):
             c.setFillColorRGB(*AZUL_INST)
             _mira_txt = ">> Mira la NOTA completa en nuestro Portal: diarioinfo.com"
             _mira_w   = c.stringWidth(_mira_txt, FUI_R, 8)
-            c.drawString(x_col2 + col_cw - _mira_w, CUERPO_Y + 5*mm, _mira_txt)
+            c.drawString(x_col2 + col_cw - _mira_w, PIE_Y + 2*mm, _mira_txt)
 
     # Pie
     draw_pie(c, W, M, PIE_Y - 4*mm)
