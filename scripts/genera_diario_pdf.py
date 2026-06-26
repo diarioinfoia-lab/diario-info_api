@@ -206,6 +206,9 @@ def obtener_notas(limite=15):
         else:
             img_url = obtener_url_imagen(n.get("imageId") or n.get("image"), pub_date=_pub_date)
         cat_name = obtener_nombre_categoria(n.get("category"))
+        _slug = n.get("slug", "") or n.get("seoSlug", "") or ""
+        _nid  = str(n.get("_id", ""))
+        _url  = f"https://www.diarioinfo.com/nota/{_slug}" if _slug else f"https://www.diarioinfo.com/nota/{_nid}"
         result.append({
             "title":    limpiar_html(n.get("title", "")),
             "excerpt":  limpiar_html(n.get("description") or n.get("excerpt") or ""),
@@ -214,6 +217,7 @@ def obtener_notas(limite=15):
             "img_url":  img_url,
             "priority": n.get("priority", 0),
             "date":     n.get("publicationDate", HOY),
+            "url":      _url,
         })
     print(f"Notas obtenidas: {len(result)}")
     for i, r in enumerate(result[:4]):
@@ -901,38 +905,179 @@ def generar_pagina_interior(c, nota, num_pag):
     draw_pie(c, W, M, PIE_Y - 4*mm)
 
 
-def generar_flipbook(pdf_url, fecha_str):
+def generar_flipbook(pdf_path, pdf_url, fecha_str, notas):
+    """Genera flipbook con efecto de pasar paginas usando StPageFlip + imagenes del PDF."""
+    import shutil
     titulo = f"Diario Info - Edicion {fecha_str}"
-    flip_html = f"""<!DOCTYPE html>
+    flip_dir = os.path.join(DIR_FLIPBOOK, fecha_str)
+    os.makedirs(flip_dir, exist_ok=True)
+
+    # -- Convertir paginas del PDF a imagenes JPG usando PyMuPDF (fitz) --
+    paginas = []
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(pdf_path)
+        mat = fitz.Matrix(1.8, 1.8)  # ~130 DPI
+        for i, page in enumerate(doc):
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            img_name = f"page-{i+1:02d}.jpg"
+            img_path = os.path.join(flip_dir, img_name)
+            pix.save(img_path)
+            paginas.append(img_name)
+        doc.close()
+        print(f"  Flipbook: {len(paginas)} paginas convertidas")
+    except ImportError:
+        print("  WARN: PyMuPDF no disponible, flipbook sin imagenes")
+    except Exception as e:
+        print(f"  WARN flipbook imagenes: {e}")
+
+    # -- Construir links por pagina: pag 1=tapa, pag 2..N = notas[0..N-2] --
+    # notas[0] es la nota principal (pag 2), notas[1] pag 3, etc.
+    links_js = "const PAGE_LINKS = [null"  # index 0 = tapa, sin link
+    for i, nota in enumerate(notas):
+        url  = nota.get("url", "")
+        titl = nota.get("title", "").replace('"', '').replace("'", "")[:60]
+        links_js += f',\n  {{url: "{url}", title: "{titl}"}}'
+    links_js += "\n];"
+
+    # -- Thumbnails lateral --
+    thumbs_html = ""
+    for i, img in enumerate(paginas):
+        thumbs_html += f'<div class="thumb" onclick="goPage({i+1})" title="Pagina {i+1}"><img src="{fecha_str}/{img}" loading="lazy"></div>\n'
+
+    # -- Paginas del flipbook --
+    pages_html = ""
+    for i, img in enumerate(paginas):
+        pages_html += f'<div class="page" data-page="{i+1}"><img src="{fecha_str}/{img}" alt="Pagina {i+1}" loading="lazy"></div>\n'
+
+    html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{titulo}</title>
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
 <style>
-*{{margin:0;padding:0;box-sizing:border-box}}
-body{{background:#1a1a2e;min-height:100vh;display:flex;flex-direction:column;align-items:center;font-family:Arial,sans-serif;color:#fff;padding:20px}}
-h1{{font-size:18px;margin-bottom:12px;color:#F47C20}}
-.viewer{{width:95vw;height:85vh;border:none;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.5)}}
-.links{{margin-top:12px;display:flex;gap:20px}}
-a{{color:#F47C20;text-decoration:none;padding:8px 16px;border:1px solid #F47C20;border-radius:4px}}
-a:hover{{background:#F47C20;color:#fff}}
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{ background: #1a1a2e; font-family: 'Helvetica Neue', sans-serif; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }}
+header {{ width: 100%; background: #003366; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }}
+.logo {{ color: #F47C20; font-size: 22px; font-weight: bold; letter-spacing: 1px; }}
+.header-date {{ color: #ccc; font-size: 13px; }}
+.header-links {{ display: flex; gap: 14px; }}
+.header-links a {{ color: #F47C20; text-decoration: none; font-size: 13px; border: 1px solid #F47C20; padding: 4px 10px; border-radius: 4px; }}
+.header-links a:hover {{ background: #F47C20; color: #fff; }}
+.main-wrap {{ display: flex; width: 100%; max-width: 1200px; gap: 12px; padding: 16px; flex: 1; }}
+.thumbs {{ width: 110px; overflow-y: auto; max-height: 80vh; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }}
+.thumb {{ cursor: pointer; border: 2px solid transparent; border-radius: 4px; overflow: hidden; transition: border-color 0.2s; }}
+.thumb:hover, .thumb.active {{ border-color: #F47C20; }}
+.thumb img {{ width: 100%; display: block; }}
+.flip-area {{ flex: 1; display: flex; flex-direction: column; align-items: center; gap: 12px; }}
+#book-container {{ width: 100%; max-width: 960px; height: 70vh; position: relative; }}
+.stf__parent {{ width: 100% !important; height: 100% !important; }}
+.page img {{ width: 100%; height: 100%; object-fit: contain; display: block; }}
+.page {{ background: #fff; }}
+.controls {{ display: flex; align-items: center; gap: 16px; }}
+.controls button {{ background: #003366; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }}
+.controls button:hover {{ background: #F47C20; }}
+.page-info {{ color: #aaa; font-size: 14px; min-width: 100px; text-align: center; }}
+.nota-link {{ position: fixed; bottom: 30px; right: 30px; background: #F47C20; color: #fff; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: bold; box-shadow: 0 4px 16px rgba(0,0,0,0.4); display: none; z-index: 100; transition: background 0.2s; }}
+.nota-link:hover {{ background: #d4691a; }}
+footer {{ background: #003366; width: 100%; text-align: center; padding: 8px; color: #aaa; font-size: 12px; }}
 </style>
 </head>
 <body>
-<h1>{titulo}</h1>
-<iframe class="viewer" src="{pdf_url}" type="application/pdf"></iframe>
-<div class="links">
-<a href="{pdf_url}" download>Descargar PDF</a>
-<a href="index.html">Ultimas ediciones</a>
+<header>
+  <div class="logo">diarioinfo<span style="color:#fff">.com</span></div>
+  <div class="header-date">{titulo}</div>
+  <div class="header-links">
+    <a href="../revistas/diarioinfo/{fecha_str}.pdf" download>&#8595; PDF</a>
+    <a href="index.html">Ediciones</a>
+  </div>
+</header>
+<div class="main-wrap">
+  <div class="thumbs" id="thumbs">
+{thumbs_html}  </div>
+  <div class="flip-area">
+    <div id="book-container">
+{pages_html}    </div>
+    <div class="controls">
+      <button onclick="pageFlip.flipPrev()">&#8249; Anterior</button>
+      <div class="page-info" id="page-info">Pagina 1 / {len(paginas)}</div>
+      <button onclick="pageFlip.flipNext()">Siguiente &#8250;</button>
+    </div>
+  </div>
 </div>
+<a class="nota-link" id="nota-link" href="#" target="_blank" rel="noopener">&#128196; Leer nota completa</a>
+<footer>www.diarioinfo.com.ar &nbsp;|&nbsp; Edicion Impresa {fecha_str}</footer>
+<script>
+{links_js}
+
+const totalPages = {len(paginas)};
+let currentPage = 1;
+
+function updateUI(page) {{
+  currentPage = page;
+  document.getElementById('page-info').textContent = 'Pagina ' + page + ' / ' + totalPages;
+  // Thumbs
+  document.querySelectorAll('.thumb').forEach((t, i) => {{
+    t.classList.toggle('active', i + 1 === page);
+  }});
+  // Scroll thumb into view
+  const thumb = document.querySelectorAll('.thumb')[page - 1];
+  if (thumb) thumb.scrollIntoView({{behavior:'smooth', block:'nearest'}});
+  // Nota link
+  const link = document.getElementById('nota-link');
+  const info = PAGE_LINKS[page - 1];
+  if (info && info.url) {{
+    link.href = info.url;
+    link.style.display = 'block';
+  }} else {{
+    link.style.display = 'none';
+  }}
+}}
+
+function goPage(n) {{
+  pageFlip.turnToPage(n - 1);
+}}
+
+const pageFlip = new St.PageFlip(document.getElementById('book-container'), {{
+  width: 480, height: 680,
+  size: 'stretch',
+  minWidth: 200, maxWidth: 960,
+  minHeight: 300, maxHeight: 900,
+  showCover: true,
+  useMouseEvents: true,
+  drawShadow: true,
+  flippingTime: 700,
+  usePortrait: true,
+  startPage: 0,
+  autoSize: true,
+}});
+
+pageFlip.loadFromHTML(document.querySelectorAll('.page'));
+
+pageFlip.on('flip', (e) => {{
+  updateUI(e.data + 1);
+}});
+
+updateUI(1);
+</script>
 </body>
-</html>"""
-    with open(FLIP_PATH, "w", encoding="utf-8") as f: f.write(flip_html)
-    idx = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
-<meta http-equiv="refresh" content="0;url={fecha_str}.html">
+</html>""";
+
+    with open(FLIP_PATH, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"  Flipbook OK: {FLIP_PATH}")
+
+    # -- Actualizar index.html de flipbook --
+    idx_html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta http-equiv="refresh" content="0; url={fecha_str}.html">
 <title>Diario Info - Edicion Impresa</title></head>
-<body><a href="{fecha_str}.html">Ver edicion</a></body></html>"""
-    with open(os.path.join(DIR_FLIPBOOK, "index.html"), "w", encoding="utf-8") as f: f.write(idx)
+<body><p>Redirigiendo a la edicion del dia... <a href="{fecha_str}.html">Click aqui</a></p>
+<a href="{fecha_str}.html">Ver edicion</a></body></html>"""
+    with open(os.path.join(DIR_FLIPBOOK, "index.html"), "w", encoding="utf-8") as f:
+        f.write(idx_html)
+
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
@@ -982,7 +1127,7 @@ def main():
     
     print("Flipbook...")
     pdf_url = f"https://diarioinfo.com/revistas/diarioinfo/{FECHA_STR}.pdf"
-    generar_flipbook(pdf_url, FECHA_STR)
+    generar_flipbook(PDF_PATH, pdf_url, FECHA_STR, notas)
     
     print(f"\n=== COMPLETADO ===")
     print(f"PDF:      {PDF_PATH}")
