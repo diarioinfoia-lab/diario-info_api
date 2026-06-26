@@ -919,7 +919,7 @@ def generar_flipbook(pdf_path, pdf_url, fecha_str, notas):
             import fitz
         except ImportError:
             import subprocess, sys as _sys
-            subprocess.check_call([_sys.executable, "-m", "pip", "install", "--quiet", "PyMuPDF"])
+            subprocess.check_call([_sys.executable, "-m", "pip", "install", "--quiet", "--user", "PyMuPDF"])
             import fitz
         doc = fitz.open(pdf_path)
         mat = fitz.Matrix(1.8, 1.8)  # ~130 DPI
