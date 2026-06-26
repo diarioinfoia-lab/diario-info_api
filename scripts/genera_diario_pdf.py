@@ -985,7 +985,7 @@ header {{ width: 100%; background: #003366; padding: 10px 20px; display: flex; a
 .controls button {{ background: #003366; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }}
 .controls button:hover {{ background: #F47C20; }}
 .page-info {{ color: #aaa; font-size: 14px; min-width: 100px; text-align: center; }}
-.nota-link {{ position: fixed; bottom: 30px; right: 30px; background: #F47C20; color: #fff; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: bold; box-shadow: 0 4px 16px rgba(0,0,0,0.4); display: none; z-index: 100; transition: background 0.2s; }}
+.nota-link {{ position: fixed; background: #F47C20; color: #fff; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: bold; box-shadow: 0 3px 12px rgba(0,0,0,0.5); display: none; z-index: 200; transition: background 0.2s; border: 2px solid rgba(255,255,255,0.3); }}
 .nota-link:hover {{ background: #d4691a; }}
 footer {{ background: #003366; width: 100%; text-align: center; padding: 8px; color: #aaa; font-size: 12px; }}
 </style>
@@ -1030,11 +1030,21 @@ function updateUI(page) {{
   // Scroll thumb into view
   const thumb = document.querySelectorAll('.thumb')[page - 1];
   if (thumb) thumb.scrollIntoView({{behavior:'smooth', block:'nearest'}});
-  // Nota link
   const link = document.getElementById('nota-link');
   const info = PAGE_LINKS[page - 1];
   if (info && info.url) {{
     link.href = info.url;
+    link.innerHTML = '&#128279; Mira la NOTA completa &rarr; diarioinfo.com';
+    const book = document.getElementById('book-container');
+    if (book) {{
+      const rect = book.getBoundingClientRect();
+      const pageW = rect.width / 2;
+      const linkLeft = rect.left + pageW * 0.35;
+      const linkBottom = window.innerHeight - rect.bottom + 22;
+      link.style.left = linkLeft + 'px';
+      link.style.bottom = linkBottom + 'px';
+      link.style.right = 'auto';
+    }}
     link.style.display = 'block';
   }} else {{
     link.style.display = 'none';
