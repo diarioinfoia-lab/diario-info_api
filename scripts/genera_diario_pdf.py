@@ -223,9 +223,16 @@ def obtener_notas(limite=15):
 # ── Helpers texto ───────────────────────────────────────────────────────────────
 def limpiar_html(texto):
     if not texto: return ""
-    texto = re.sub(r'<[^>]+>', ' ', str(texto))
-    texto = html.unescape(texto)
-    return re.sub(r'\s+', ' ', texto).strip()
+    t = str(texto)
+    # Preservar saltos de parrafo antes de limpiar HTML
+    t = re.sub(r'</p>\s*<p[^>]*>', '\n', t, flags=re.IGNORECASE)
+    t = re.sub(r'<br\s*/?>', '\n', t, flags=re.IGNORECASE)
+    t = re.sub(r'</?p[^>]*>', '\n', t, flags=re.IGNORECASE)
+    t = re.sub(r'<[^>]+>', ' ', t)
+    t = html.unescape(t)
+    # Colapsar espacios pero NO los saltos de linea
+    lineas = [re.sub(r' +', ' ', ln).strip() for ln in t.split('\n')]
+    return '\n'.join(l for l in lineas if l)
 
 def wrap_lines(c, texto, ancho, fuente, tamanio):
     """Divide texto en lineas que entran en el ancho dado"""
