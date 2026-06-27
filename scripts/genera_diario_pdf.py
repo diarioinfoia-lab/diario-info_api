@@ -647,7 +647,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     nota_p   = notas[0] if notas else None
     Y_EDIT   = Y_FIL - 3*mm
     PIE_H    = 14*mm
-    SEC_H    = 92*mm
+    SEC_H    = 102.6*mm
     Y_SEC_TOP = PIE_H + SEC_H
 
     if nota_p:
