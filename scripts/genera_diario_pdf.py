@@ -4,6 +4,7 @@
 
 # ==============================================================================
 # CHANGELOG AUTOMATICO - VERSIONES
+# v3.39 - Fix TIT_W Layout B; cotizaciones via argv desde PHP
 # v3.37 - Sin categoria en Layout A, cotizaciones con API fallback dolarapi.com
 # v3.36 - Subir notas secundarias +30pt adicionales (SEC_H 92->102.6mm)
 # v3.35 - Subir notas secundarias 20pt (SEC_H 85->92mm)
@@ -745,7 +746,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
 
             # Titulo columna derecha, arranca al mismo Y que la foto (alineado top)
             TIT_X = M + COL2 + 3*mm
-            TIT_W = COL2 * 0.75          # 75% del ancho de columna
+            TIT_W = (W - M) - TIT_X     # ancho disponible hasta margen derecho
             ty    = IMG_TOP - TIT_LH     # baseline primera linea = top imagen
             # (sin categoria en nota de 1 columna - Layout B)
             c.setFont(FTI_B, TIT_PTS)
@@ -1143,7 +1144,17 @@ def main():
         print("ERROR: Sin notas"); sys.exit(1)
     
     print("Cotizaciones...")
-    of, bl = obtener_cotizaciones()
+    import sys as _sys
+    _argv = _sys.argv
+    _of_arg = _bl_arg = ''
+    for _ai, _av in enumerate(_argv):
+        if _av == '--cotiz_of' and _ai+1 < len(_argv): _of_arg = _argv[_ai+1]
+        if _av == '--cotiz_bl' and _ai+1 < len(_argv): _bl_arg = _argv[_ai+1]
+    if _of_arg and _bl_arg:
+        of, bl = _of_arg, _bl_arg
+        print(f"  Cotizaciones via args: {of} | {bl}")
+    else:
+        of, bl = obtener_cotizaciones()
     print(f"  {of} | {bl}")
     
     print("Clima...")
