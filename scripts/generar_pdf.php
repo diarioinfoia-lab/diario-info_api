@@ -64,7 +64,7 @@ if ($python_ok && $script_ok) {
     // Limpiar log anterior
     file_put_contents($log_file, '--- Inicio: ' . date('Y-m-d H:i:s') . "\n");
     // --- AUTO-UPDATE: descarga a /tmp y ejecuta desde ahi ---
-    $github_raw = 'https://raw.githubusercontent.com/diarioinfoia-lab/diario-info_api/master/scripts/genera_diario_pdf.py';
+    $github_raw = 'https://cdn.jsdelivr.net/gh/diarioinfoia-lab/diario-info_api@master/scripts/genera_diario_pdf.py';
     $tmp_script = '/tmp/diarioinfo_genera_pdf_latest.py';
     if (file_exists($tmp_script)) @unlink($tmp_script);
     $downloaded = @file_get_contents($github_raw . '?v=' . time());
