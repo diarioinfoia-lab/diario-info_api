@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Diario Info - Generador de PDF Edicion Impresa v3.32 - Sin categoria en notas 1col tapa; TIT_SEC -2pt; sec mas abajo
-Correcciones: lookup de categorias, URLs de imagenes correctas, clima en Celsius
+Correcciones: lookup de categorias, URLs de imagenes correctas, clima en Celsius 
 """
 
 import os, sys, re, io, html, urllib.parse
