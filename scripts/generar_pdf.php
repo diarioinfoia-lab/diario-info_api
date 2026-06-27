@@ -88,7 +88,7 @@ if ($python_ok && $script_ok) {
     }
     // --- FIN AUTO-UPDATE ---
     
-    $cmd = $python_ok . ' ' . $script_ok . ' >> ' . $log_file . ' 2>&1';
+    $cmd = $python_ok . ' ' . $script_to_run . ' >> ' . $log_file . ' 2>&1';
     echo '<div class="box">';
     echo '<p class="ok">Ejecutando script... (puede tardar 30-60 seg)</p>';
     echo '<p><b>Comando:</b> <code>' . htmlspecialchars($cmd) . '</code></p>';
