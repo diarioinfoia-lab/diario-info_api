@@ -93,7 +93,33 @@ if ($python_ok && $script_ok) {
     }
     // --- FIN AUTO-UPDATE ---
     
-    $cmd = $python_ok . ' ' . $script_to_run . ' >> ' . $log_file . ' 2>&1';
+    // Cotizaciones via PHP (tiene acceso de red)
+    $cotiz_of_val = "---"; $cotiz_bl_val = "---";
+    $apis_dolar = array(
+        "https://api.bluelytics.com.ar/v2/latest",
+        "https://dolarapi.com/v1/dolares/oficial"
+    );
+    $ctx_dolar = stream_context_create(["http"=>["timeout"=>8,"User-Agent"=>"PHP-diarioinfo"]]);
+    $resp1 = @file_get_contents("https://api.bluelytics.com.ar/v2/latest", false, $ctx_dolar);
+    if ($resp1) {
+        $d1 = json_decode($resp1, true);
+        $of1 = isset($d1["oficial"]["value_sell"]) ? $d1["oficial"]["value_sell"] : 0;
+        $bl1 = isset($d1["blue"]["value_sell"]) ? $d1["blue"]["value_sell"] : 0;
+        if ($of1 && $bl1) { $cotiz_of_val = "Oficial: $" . number_format($of1, 0, ",", "."); $cotiz_bl_val = "Blue: $" . number_format($bl1, 0, ",", "."); }
+    }
+    if ($cotiz_of_val === "---") {
+        $resp2 = @file_get_contents("https://dolarapi.com/v1/dolares/oficial", false, $ctx_dolar);
+        $resp3 = @file_get_contents("https://dolarapi.com/v1/dolares/blue", false, $ctx_dolar);
+        if ($resp2 && $resp3) {
+            $d2 = json_decode($resp2, true); $d3 = json_decode($resp3, true);
+            $of2 = isset($d2["venta"]) ? $d2["venta"] : 0;
+            $bl2 = isset($d3["venta"]) ? $d3["venta"] : 0;
+            if ($of2 && $bl2) { $cotiz_of_val = "Oficial: $" . number_format($of2, 0, ",", "."); $cotiz_bl_val = "Blue: $" . number_format($bl2, 0, ",", "."); }
+        }
+    }
+    file_put_contents($log_file, "--- Cotiz PHP: " . $cotiz_of_val . " | " . $cotiz_bl_val . "\n", FILE_APPEND);
+    $cotiz_args = " --cotiz_of " . escapeshellarg($cotiz_of_val) . " --cotiz_bl " . escapeshellarg($cotiz_bl_val);
+    $cmd = $python_ok . ' ' . $script_ok . $cotiz_args . ' >> ' . $log_file . ' 2>&1';
     echo '<div class="box">';
     echo '<p class="ok">Ejecutando script... (puede tardar 30-60 seg)</p>';
     echo '<p><b>Comando:</b> <code>' . htmlspecialchars($cmd) . '</code></p>';
