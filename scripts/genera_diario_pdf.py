@@ -436,14 +436,29 @@ def draw_logo(c, cx_icon, cy_icon, r=18, escala=1.0):
 def obtener_cotizaciones():
     try:
         import json
+        # API principal: bluelytics
         req = urllib.request.urlopen("https://api.bluelytics.com.ar/v2/latest", timeout=8)
         data = json.loads(req.read())
         of = data.get("oficial", {}).get("value_sell", 0)
         bl = data.get("blue", {}).get("value_sell", 0)
-        return f"Oficial: ${of:,.0f}", f"Blue: ${bl:,.0f}"
-    except:
+        if of and bl:
+            return f"Oficial: ${of:,.0f}", f"Blue: ${bl:,.0f}"
+        raise ValueError("valores cero")
+    except Exception as e1:
+        try:
+            import json
+            # API alternativa: dolarapi.com
+            req2 = urllib.request.urlopen("https://dolarapi.com/v1/dolares/oficial", timeout=8)
+            d_of = json.loads(req2.read())
+            req3 = urllib.request.urlopen("https://dolarapi.com/v1/dolares/blue", timeout=8)
+            d_bl = json.loads(req3.read())
+            of2 = d_of.get("venta", 0)
+            bl2 = d_bl.get("venta", 0)
+            if of2 and bl2:
+                return f"Oficial: ${of2:,.0f}", f"Blue: ${bl2:,.0f}"
+        except:
+            pass
         return "Oficial: ---", "Blue: ---"
-
 def obtener_clima():
     """Obtiene temperatura en Celsius"""
     try:
@@ -671,8 +686,6 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             IMG_BOT = IMG_TOP - IMG_H
             draw_image_bleed(c, ir_p, iw_p, ih_p, IMG_X, IMG_BOT, IMG_W, IMG_H)
 
-            # Categoria
-            draw_categoria_banda(c, cat, M, IMG_BOT - 7*mm, W - 2*M, FUI_B)
 
             # Titulo completo debajo de imagen (sin limite de lineas)
             ty = IMG_BOT - 16*mm
