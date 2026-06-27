@@ -1,6 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+
+# ==============================================================================
+# CHANGELOG AUTOMATICO - VERSIONES
+# v3.37 - Sin categoria en Layout A, cotizaciones con API fallback dolarapi.com
+# v3.36 - Subir notas secundarias +30pt adicionales (SEC_H 92->102.6mm)
+# v3.35 - Subir notas secundarias 20pt (SEC_H 85->92mm)
+# v3.34 - Categoria overlay encima imagen secundaria; titulo completo abajo
+# v3.33 - Restaurar categoria en notas secundarias; titulo 10pt abajo completo
+# v3.32 - Sin categoria nota 1col tapa; TIT_SEC -6pt; sec mas abajo
+# v3.31 - Fix sort: publicationDate DESC primero para noticias actualizadas
+# v3.30 - Boton dinamico en flipbook; fix cache PDF; fix URL flipbook
+# v3.20 - Version base con todas las correcciones iniciales
+# ==============================================================================
+# NOTAS TECNICAS:
+# - Layout A: foto apaisada (ratio>=1.45) full bleed, titulo debajo, SIN categoria
+# - Layout B: foto vertical (ratio<1.45) 1col izq, titulo 2da col, SIN categoria
+# - Notas secundarias: 3 columnas, imagen + categoria overlay + titulo completo
+# - Sort MongoDB: [("publicationDate",-1), ("priority",-1)] - fecha primero
+# - SEC_H = 102.6mm (subida total de 17.6mm / 50pt desde version original)
+# - Cotizaciones: API bluelytics primero, fallback dolarapi.com
+# - Merriweather no disponible -> usa Lato-Bold como fallback titular
+# ==============================================================================
 Diario Info - Generador de PDF Edicion Impresa v3.34 - cat overlay encima imagen sec; titulo completo abajo
 Correcciones: lookup de categorias, URLs de imagenes correctas, clima en Celsius 
 """
