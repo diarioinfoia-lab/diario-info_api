@@ -66,7 +66,8 @@ if ($python_ok && $script_ok) {
     // --- AUTO-UPDATE: descarga a /tmp y ejecuta desde ahi ---
     $github_raw = 'https://raw.githubusercontent.com/diarioinfoia-lab/diario-info_api/master/scripts/genera_diario_pdf.py';
     $tmp_script = '/tmp/diarioinfo_genera_pdf_latest.py';
-    $downloaded = @file_get_contents($github_raw);
+    if (file_exists($tmp_script)) @unlink($tmp_script);
+    $downloaded = @file_get_contents($github_raw . '?v=' . time());
     if ($downloaded !== false && strlen($downloaded) > 10000 && strpos($downloaded, '#!/') === 0) {
         $written = file_put_contents($tmp_script, $downloaded);
         if ($written > 10000) {
