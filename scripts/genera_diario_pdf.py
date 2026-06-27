@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Diario Info - Generador de PDF Edicion Impresa v3.33b - banda azul en sec; titulo 10pt abajo completo
+Diario Info - Generador de PDF Edicion Impresa v3.34 - cat overlay encima imagen sec; titulo completo abajo
 Correcciones: lookup de categorias, URLs de imagenes correctas, clima en Celsius 
 """
 
@@ -749,16 +749,16 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
             c.line(M + (i+1)*col_w, Y_SEC_TOP, M + (i+1)*col_w, sec_bot)
-        # Categoria (banda azul)
-        cat_s = ns.get("category", "GENERAL")
-        draw_categoria_banda(c, cat_s, cx + pad, Y_SEC_TOP - 4*mm, col_w - 2*pad, FUI_B)
         # Imagen
         img_url_s = ns.get("img_url", "")
         img_x_s   = cx + pad
         img_w_s   = col_w - 2*pad
-        img_top_s = Y_SEC_TOP - 9*mm
+        img_top_s = Y_SEC_TOP - 7*mm
         ir_s, iw_s, ih_s = get_image_data(img_url_s)
         draw_image_bleed(c, ir_s, iw_s, ih_s, img_x_s, img_top_s - img_h_sec, img_w_s, img_h_sec)
+        # Categoria encima de imagen (dibujada despues para ser visible)
+        cat_s = ns.get("category", "GENERAL")
+        draw_categoria_banda(c, cat_s, img_x_s, img_top_s - img_h_sec + 1*mm, img_w_s * 0.55, FUI_B)
         # Titulo completo (4pt menos que principal)
         tit_s = limpiar_html(ns.get("title", ""))
         ty_s  = img_top_s - img_h_sec - 6.5*mm
