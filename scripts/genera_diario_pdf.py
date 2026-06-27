@@ -4,7 +4,7 @@
 
 # ==============================================================================
 # CHANGELOG AUTOMATICO - VERSIONES
-# v3.40 - obtener_cotizaciones: fallback via curl subprocess
+# v3.41 - Bajar notas secundarias 12pt (SEC_H 102.6->98.4mm)
 # v3.37 - Sin categoria en Layout A, cotizaciones con API fallback dolarapi.com
 # v3.36 - Subir notas secundarias +30pt adicionales (SEC_H 92->102.6mm)
 # v3.35 - Subir notas secundarias 20pt (SEC_H 85->92mm)
@@ -693,7 +693,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     nota_p   = notas[0] if notas else None
     Y_EDIT   = Y_FIL - 3*mm
     PIE_H    = 14*mm
-    SEC_H    = 102.6*mm
+    SEC_H    = 98.4*mm
     Y_SEC_TOP = PIE_H + SEC_H
 
     if nota_p:
