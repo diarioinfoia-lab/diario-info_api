@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Diario Info - Generador de PDF Edicion Impresa v3.33 - Cat en sec; titulo sec 10pt abajo completo
+Diario Info - Generador de PDF Edicion Impresa v3.33b - banda azul en sec; titulo 10pt abajo completo
 Correcciones: lookup de categorias, URLs de imagenes correctas, clima en Celsius 
 """
 
@@ -749,15 +749,9 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
             c.line(M + (i+1)*col_w, Y_SEC_TOP, M + (i+1)*col_w, sec_bot)
-        # Categoria
+        # Categoria (banda azul)
         cat_s = ns.get("category", "GENERAL")
-        c.setFont(FUI_B, 9)
-        c.setFillColorRGB(*AZUL_INST)
-        safe_cat = (cat_s or "").encode('ascii','replace').decode('ascii')[:20]
-        c.drawString(cx + pad, Y_SEC_TOP - 4*mm, safe_cat)
-        c.setStrokeColorRGB(*AZUL_INST)
-        c.setLineWidth(0.8)
-        c.line(cx + pad, Y_SEC_TOP - 5*mm, cx + col_w - pad, Y_SEC_TOP - 5*mm)
+        draw_categoria_banda(c, cat_s, cx + pad, Y_SEC_TOP - 4*mm, col_w - 2*pad, FUI_B)
         # Imagen
         img_url_s = ns.get("img_url", "")
         img_x_s   = cx + pad
