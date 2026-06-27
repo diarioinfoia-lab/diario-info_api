@@ -64,11 +64,15 @@ if ($python_ok && $script_ok) {
     // Limpiar log anterior
     file_put_contents($log_file, '--- Inicio: ' . date('Y-m-d H:i:s') . "\n");
     // --- AUTO-UPDATE: descarga a /tmp y ejecuta desde ahi ---
-    $github_raw = 'https://cdn.jsdelivr.net/gh/diarioinfoia-lab/diario-info_api@master/scripts/genera_diario_pdf.py';
+    $github_api = 'https://api.github.com/repos/diarioinfoia-lab/diario-info_api/contents/scripts/genera_diario_pdf.py';
     $tmp_script = '/tmp/diarioinfo_genera_pdf_latest.py';
     if (file_exists($tmp_script)) @unlink($tmp_script);
-    $downloaded = @file_get_contents($github_raw . '?v=' . time());
-    if ($downloaded !== false && strlen($downloaded) > 10000 && strpos($downloaded, '#!/') === 0) {
+    $api_resp = @file_get_contents($github_api, false, stream_context_create(['http'=>['header'=>"User-Agent: PHP-diarioinfo\r\n"]]));
+    $downloaded = false;
+    if ($api_resp) {
+        $api_data = json_decode($api_resp, true);
+        $downloaded = base64_decode(str_replace("\n","", $api_data['content']));
+    }
         $written = file_put_contents($tmp_script, $downloaded);
         if ($written > 10000) {
             chmod($tmp_script, 0755);
