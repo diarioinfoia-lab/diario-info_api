@@ -4,7 +4,7 @@
 
 # ==============================================================================
 # CHANGELOG AUTOMATICO - VERSIONES
-# v3.39 - Fix TIT_W Layout B; cotizaciones via argv desde PHP
+# v3.40 - obtener_cotizaciones: fallback via curl subprocess
 # v3.37 - Sin categoria en Layout A, cotizaciones con API fallback dolarapi.com
 # v3.36 - Subir notas secundarias +30pt adicionales (SEC_H 92->102.6mm)
 # v3.35 - Subir notas secundarias 20pt (SEC_H 85->92mm)
@@ -457,31 +457,39 @@ def draw_logo(c, cx_icon, cy_icon, r=18, escala=1.0):
 
 # ── Cotizaciones y Clima ────────────────────────────────────────────────────────
 def obtener_cotizaciones():
+    import json, subprocess
+    # API 1: bluelytics
     try:
-        import json
-        # API principal: bluelytics
         req = urllib.request.urlopen("https://api.bluelytics.com.ar/v2/latest", timeout=8)
         data = json.loads(req.read())
         of = data.get("oficial", {}).get("value_sell", 0)
         bl = data.get("blue", {}).get("value_sell", 0)
         if of and bl:
             return f"Oficial: ${of:,.0f}", f"Blue: ${bl:,.0f}"
-        raise ValueError("valores cero")
     except Exception as e1:
-        try:
-            import json
-            # API alternativa: dolarapi.com
-            req2 = urllib.request.urlopen("https://dolarapi.com/v1/dolares/oficial", timeout=8)
-            d_of = json.loads(req2.read())
-            req3 = urllib.request.urlopen("https://dolarapi.com/v1/dolares/blue", timeout=8)
-            d_bl = json.loads(req3.read())
-            of2 = d_of.get("venta", 0)
-            bl2 = d_bl.get("venta", 0)
-            if of2 and bl2:
-                return f"Oficial: ${of2:,.0f}", f"Blue: ${bl2:,.0f}"
-        except:
-            pass
-        return "Oficial: ---", "Blue: ---"
+        print(f"  [cotiz] bluelytics fallo: {e1}")
+    # API 2: dolarapi.com
+    try:
+        r2 = urllib.request.urlopen("https://dolarapi.com/v1/dolares/oficial", timeout=8)
+        r3 = urllib.request.urlopen("https://dolarapi.com/v1/dolares/blue", timeout=8)
+        d2 = json.loads(r2.read()); d3 = json.loads(r3.read())
+        of2 = d2.get("venta", 0); bl2 = d3.get("venta", 0)
+        if of2 and bl2:
+            return f"Oficial: ${of2:,.0f}", f"Blue: ${bl2:,.0f}"
+    except Exception as e2:
+        print(f"  [cotiz] dolarapi fallo: {e2}")
+    # API 3: via curl
+    try:
+        rc = subprocess.run(["curl","-sf","--max-time","8","https://api.bluelytics.com.ar/v2/latest"], capture_output=True, timeout=10)
+        if rc.returncode == 0 and rc.stdout:
+            data3 = json.loads(rc.stdout)
+            of3 = data3.get("oficial", {}).get("value_sell", 0)
+            bl3 = data3.get("blue", {}).get("value_sell", 0)
+            if of3 and bl3:
+                return f"Oficial: ${of3:,.0f}", f"Blue: ${bl3:,.0f}"
+    except Exception as e3:
+        print(f"  [cotiz] curl fallo: {e3}")
+    return "Oficial: ---", "Blue: ---"
 def obtener_clima():
     """Obtiene temperatura en Celsius"""
     try:
