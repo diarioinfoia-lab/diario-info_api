@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Diario Info - Generador de PDF Edicion Impresa v3.32 - Sin categoria en notas 1col tapa; TIT_SEC -2pt; sec mas abajo
+Diario Info - Generador de PDF Edicion Impresa v3.33 - Cat en sec; titulo sec 10pt abajo completo
 Correcciones: lookup de categorias, URLs de imagenes correctas, clima en Celsius 
 """
 
@@ -749,7 +749,15 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
             c.line(M + (i+1)*col_w, Y_SEC_TOP, M + (i+1)*col_w, sec_bot)
-        # (sin categoria en notas secundarias)
+        # Categoria
+        cat_s = ns.get("category", "GENERAL")
+        c.setFont(FUI_B, 9)
+        c.setFillColorRGB(*AZUL_INST)
+        safe_cat = (cat_s or "").encode('ascii','replace').decode('ascii')[:20]
+        c.drawString(cx + pad, Y_SEC_TOP - 4*mm, safe_cat)
+        c.setStrokeColorRGB(*AZUL_INST)
+        c.setLineWidth(0.8)
+        c.line(cx + pad, Y_SEC_TOP - 5*mm, cx + col_w - pad, Y_SEC_TOP - 5*mm)
         # Imagen
         img_url_s = ns.get("img_url", "")
         img_x_s   = cx + pad
@@ -759,11 +767,10 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         draw_image_bleed(c, ir_s, iw_s, ih_s, img_x_s, img_top_s - img_h_sec, img_w_s, img_h_sec)
         # Titulo completo (4pt menos que principal)
         tit_s = limpiar_html(ns.get("title", ""))
-        ty_s  = img_top_s - img_h_sec - 3*mm
+        ty_s  = img_top_s - img_h_sec - 6.5*mm
         c.setFont(FTI_B, TIT_SEC)
         c.setFillColorRGB(*NEGRO)
         for tsl in wrap_lines(c, tit_s, col_w - 2*pad, FTI_B, TIT_SEC):
-            if ty_s < sec_bot + 1*mm: break
             c.drawString(cx + pad, ty_s, tsl)
             ty_s -= TIT_SEC_LH
 
