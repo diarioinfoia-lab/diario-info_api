@@ -72,7 +72,7 @@ if ($python_ok && $script_ok) {
     if ($api_resp) {
         $api_data = json_decode($api_resp, true);
         $downloaded = base64_decode(str_replace("\n","", $api_data['content']));
-    }
+    
         $written = file_put_contents($tmp_script, $downloaded);
         if ($written > 10000) {
             chmod($tmp_script, 0755);
