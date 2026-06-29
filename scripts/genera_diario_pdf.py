@@ -739,7 +739,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             # Separador
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
-            c.line(M, ty - (2*mm- 3.2*mm), W - M, ty - (2*mm- 3.2*mm))
+            c.line(M, ty - (2*mm- 3.5*mm), W - M, ty - (2*mm- 3.5*mm))
 
         # ── LAYOUT B: ratio < 1.5 (vertical, cuadrada, 4:3, 9:16) ──────────────
         # Foto en 1 columna izq, titulo completo en columna der al mismo Y
@@ -792,7 +792,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         if i < col_n - 1:
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
-            c.line(M + (i+1)*col_w, Y_SEC_TOP + 5*mm, M + (i+1)*col_w, sec_bot)
+            c.line(M + (i+1)*col_w, Y_SEC_TOP - 6*mm, M + (i+1)*col_w, sec_bot)
         # Imagen
         img_url_s = ns.get("img_url", "")
         img_x_s   = cx + pad
