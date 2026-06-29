@@ -41,7 +41,7 @@ MONGO_FILES_COL  = "files"
 GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_URL   = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
-HORAS_MAX        = 5   # Solo noticias de las ultimas N horas
+HORAS_MAX        = 2   # Solo noticias de las ultimas N horas
 
 FUENTES = [
     {
@@ -143,7 +143,7 @@ def parsear_fecha_articulo(soup, fuente):
     return None
 
 
-def es_reciente(soup, fuente, horas_max=5):
+def es_reciente(soup, fuente, horas_max=2):
     """Devuelve True si el articulo fue publicado en las ultimas horas_max horas."""
     fecha = parsear_fecha_articulo(soup, fuente)
     if fecha is None:
@@ -323,7 +323,7 @@ def reescribir_con_gemini(articulo, categoria):
     prompt = f"""
 Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.
 Reescribe la siguiente noticia de {categoria} en formato periodistico profesional.
-La nota debe ser original, no copiar textualmente la fuente.
+La nota debe ser original, no copiar textualmente la fuente ni tampoco inventar nada.
 Responde SOLO con un JSON con esta estructura exacta:
 {{
   "titulo": "Titulo atractivo y periodistico (max 100 chars)",
