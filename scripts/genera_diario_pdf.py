@@ -694,7 +694,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     Y_EDIT   = Y_FIL - 3*mm
     PIE_H    = 14*mm
     SEC_H    = 98.4*mm
-    Y_SEC_TOP = PIE_H + SEC_H - 9*mm
+    Y_SEC_TOP = PIE_H + SEC_H - 10*mm
 
     if nota_p:
         titulo  = limpiar_html(nota_p.get("title", ""))
