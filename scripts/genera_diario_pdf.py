@@ -739,7 +739,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             # Separador
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
-            c.line(M, ty - (2*mm- 2*mm), W - M, ty - (2*mm- 2*mm))
+            c.line(M, ty - (2*mm- 2.2*mm), W - M, ty - (2*mm- 2.2*mm))
 
         # ── LAYOUT B: ratio < 1.5 (vertical, cuadrada, 4:3, 9:16) ──────────────
         # Foto en 1 columna izq, titulo completo en columna der al mismo Y
