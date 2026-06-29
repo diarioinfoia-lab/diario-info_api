@@ -792,7 +792,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         if i < col_n - 1:
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
-            c.line(M + (i+1)*col_w, Y_SEC_TOP, M + (i+1)*col_w, sec_bot)
+            c.line(M + (i+4)*col_w, Y_SEC_TOP, M + (i+4)*col_w, sec_bot)
         # Imagen
         img_url_s = ns.get("img_url", "")
         img_x_s   = cx + pad
