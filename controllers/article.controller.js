@@ -242,6 +242,10 @@ exports.getPublicArticles = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 10;
   const condition = { status: "published" };
+  const skip = req.query.skip !== undefined
+    ? parseInt(req.query.skip)
+    : (page - 1) * pageSize; // 👈 fallback a comportamiento actual
+
 
   if (title) {
     const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -314,7 +318,7 @@ exports.getPublicArticles = async (req, res) => {
           _id: -1,
         },
       },
-      { $skip: (page - 1) * pageSize },
+      { $skip: skip },
       { $limit: pageSize },
       { $project: { _id: 1 } },
     ]);

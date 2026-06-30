@@ -412,8 +412,6 @@ exports.getDailySignHoroscope = async (req, res) => {
     return res.status(200).json(apiV1CloneJson);
 
   } catch (error) {
-    console.error("[ASTRO API ERROR] Live query failed, using V1 simulation as fallback:", error.message);
-
     // If the external API is down, we return the faithful simulation with native V1 format
     const apiV1CloneJson = buildStaticHoroscope(signKey, isoDate, dateObj);
     return res.status(200).json(apiV1CloneJson);
