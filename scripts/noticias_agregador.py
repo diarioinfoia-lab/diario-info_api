@@ -43,7 +43,7 @@ GEMINI_API_URL   = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 HORAS_MAX        = 2   # Solo noticias de las ultimas N horas
 
 FUENTES = [
-    # ── El Liberal (SDE capital) ──
+    # ── SDE: El Liberal ──────────────────────────────────────────────────────────
     {
         "nombre": "El Liberal Policiales",
         "url": "https://www.elliberal.com.ar/policiales/",
@@ -53,7 +53,8 @@ FUENTES = [
         "selector_imagen": "div.nota__image img, div.article__image img, figure img, article img",
         "selector_fecha": "time, span.fecha, .nota__date, .article__date",
         "categoria": "policiales",
-        "credito": "El Liberal"
+        "credito": "El Liberal",
+        "es_sde": True
     },
     {
         "nombre": "El Liberal Politica",
@@ -64,7 +65,8 @@ FUENTES = [
         "selector_imagen": "div.nota__image img, div.article__image img, figure img, article img",
         "selector_fecha": "time, span.fecha, .nota__date, .article__date",
         "categoria": "politica",
-        "credito": "El Liberal"
+        "credito": "El Liberal",
+        "es_sde": True
     },
     {
         "nombre": "El Liberal Deportes",
@@ -75,20 +77,10 @@ FUENTES = [
         "selector_imagen": "div.nota__image img, div.article__image img, figure img, article img",
         "selector_fecha": "time, span.fecha, .nota__date, .article__date",
         "categoria": "deportes",
-        "credito": "El Liberal"
+        "credito": "El Liberal",
+        "es_sde": True
     },
-    {
-        "nombre": "El Liberal Sociedad",
-        "url": "https://www.elliberal.com.ar/sociedad/",
-        "selector_lista": "a[href*='/nota/']",
-        "selector_titulo": "h1.nota__title, h1.article__title, h1",
-        "selector_cuerpo": "div.nota__body p, div.article__body p, article p",
-        "selector_imagen": "div.nota__image img, div.article__image img, figure img, article img",
-        "selector_fecha": "time, span.fecha, .nota__date, .article__date",
-        "categoria": "sociedad",
-        "credito": "El Liberal"
-    },
-    # ── Diario Panorama (SDE capital) ──
+    # ── SDE: Diario Panorama ─────────────────────────────────────────────────────
     {
         "nombre": "Diario Panorama Policiales",
         "url": "https://www.diariopanorama.com/seccion/policiales_22",
@@ -98,7 +90,8 @@ FUENTES = [
         "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
         "selector_fecha": "time, .article-date, .entry-date, span.date",
         "categoria": "policiales",
-        "credito": "Diario Panorama"
+        "credito": "Diario Panorama",
+        "es_sde": True
     },
     {
         "nombre": "Diario Panorama Politica",
@@ -109,7 +102,8 @@ FUENTES = [
         "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
         "selector_fecha": "time, .article-date, .entry-date, span.date",
         "categoria": "politica",
-        "credito": "Diario Panorama"
+        "credito": "Diario Panorama",
+        "es_sde": True
     },
     {
         "nombre": "Diario Panorama Deportes",
@@ -120,7 +114,8 @@ FUENTES = [
         "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
         "selector_fecha": "time, .article-date, .entry-date, span.date",
         "categoria": "deportes",
-        "credito": "Diario Panorama"
+        "credito": "Diario Panorama",
+        "es_sde": True
     },
     {
         "nombre": "Diario Panorama Espectaculos",
@@ -131,9 +126,10 @@ FUENTES = [
         "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
         "selector_fecha": "time, .article-date, .entry-date, span.date",
         "categoria": "espectaculos",
-        "credito": "Diario Panorama"
+        "credito": "Diario Panorama",
+        "es_sde": True
     },
-    # ── Interior SDE: Nuevo Diario (Termas de Rio Hondo) ──
+    # ── Interior SDE: Provincial ─────────────────────────────────────────────────
     {
         "nombre": "Nuevo Diario Web",
         "url": "https://www.nuevodiarioweb.com.ar/",
@@ -143,9 +139,96 @@ FUENTES = [
         "selector_imagen": "div.article-image img, figure img, article img",
         "selector_fecha": "time, span.date, .article-date",
         "categoria": "interior",
-        "credito": "Nuevo Diario Web"
+        "credito": "Nuevo Diario Web",
+        "es_sde": True
     },
-    # ── Interior SDE: Semanario Conciencia (Frías) ──
+    {
+        "nombre": "Info del Estero",
+        "url": "https://infodelestero.com",
+        "selector_lista": "h2 a, h3 a, article a, .entry-title a",
+        "selector_titulo": "h1.entry-title, h1",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, .wp-post-image, article img",
+        "selector_fecha": "time, .entry-date, span.fecha",
+        "categoria": "interior",
+        "credito": "Info del Estero",
+        "es_sde": True
+    },
+    {
+        "nombre": "385 Noticias",
+        "url": "https://www.385.com.ar",
+        "selector_lista": "h2 a, h3 a, article a, .entry-title a",
+        "selector_titulo": "h1.entry-title, h1",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "385 Noticias",
+        "es_sde": True
+    },
+    {
+        "nombre": "Diario de Santiago",
+        "url": "https://diariodesantiago.com",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.entry-title",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "Diario de Santiago",
+        "es_sde": True
+    },
+    {
+        "nombre": "Noticias del Estero",
+        "url": "https://www.noticiasdelestero.com",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.entry-title",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "Noticias del Estero",
+        "es_sde": True
+    },
+    # ── Interior SDE: La Banda ───────────────────────────────────────────────────
+    {
+        "nombre": "La Banda Diario",
+        "url": "https://labandadiario.com",
+        "selector_lista": "h2 a, h3 a, article a, .entry-title a",
+        "selector_titulo": "h1.entry-title, h1",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, .wp-post-image, article img",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "La Banda Diario",
+        "es_sde": True
+    },
+    # ── Interior SDE: Termas de Rio Hondo ────────────────────────────────────────
+    {
+        "nombre": "Termas Digital",
+        "url": "https://termasdigital.com.ar",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.entry-title",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "Termas Digital",
+        "es_sde": True
+    },
+    # ── Interior SDE: Sur provincial (Bandera, Frias, Quimili) ──────────────────
+    {
+        "nombre": "Sur Santiago",
+        "url": "https://sursantiago.com.ar",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.entry-title",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "Sur Santiago",
+        "es_sde": True
+    },
     {
         "nombre": "Semanario Conciencia",
         "url": "https://www.semanarioconciencia.com/",
@@ -155,9 +238,9 @@ FUENTES = [
         "selector_imagen": "figure img, .wp-post-image, article img",
         "selector_fecha": "time, .entry-date, span.fecha",
         "categoria": "interior",
-        "credito": "Semanario Conciencia"
+        "credito": "Semanario Conciencia",
+        "es_sde": True
     },
-    # ── Interior SDE: El Siglo SDE (Añatuya / Quimilí) ──
     {
         "nombre": "El Siglo SDE",
         "url": "https://www.elsigloweb.com/",
@@ -167,112 +250,62 @@ FUENTES = [
         "selector_imagen": "figure img, article img, .wp-post-image",
         "selector_fecha": "time, .entry-date",
         "categoria": "interior",
-        "credito": "El Siglo"
+        "credito": "El Siglo",
+        "es_sde": True
     },
-    # ── Interior SDE: Info Santiago ──
+    # ── Nacionales: solo Deportes y Judiciales ───────────────────────────────────
     {
-        "nombre": "Info Santiago",
-        "url": "https://www.infosantiago.com.ar/",
+        "nombre": "Ole Deportes",
+        "url": "https://www.ole.com.ar/",
         "selector_lista": "h2 a, h3 a, article a",
         "selector_titulo": "h1, h1.title",
-        "selector_cuerpo": "article p, div.content p",
+        "selector_cuerpo": "div.body-nota p, div.article-body p, article p",
         "selector_imagen": "figure img, article img",
         "selector_fecha": "time, span.date",
-        "categoria": "interior",
-        "credito": "Info Santiago"
-    },
-    # ── Interior SDE: La Razon de Loreto ──
-    {
-        "nombre": "La Razon de Loreto",
-        "url": "https://www.larazondelor.com.ar/",
-        "selector_lista": "h2 a, h3 a, article a",
-        "selector_titulo": "h1, h1.entry-title",
-        "selector_cuerpo": "div.entry-content p, article p",
-        "selector_imagen": "figure img, article img",
-        "selector_fecha": "time, .entry-date",
-        "categoria": "interior",
-        "credito": "La Razon de Loreto"
-    },
-    # ── Interior SDE: La Verdad Santiago ──
-    {
-        "nombre": "La Verdad Santiago",
-        "url": "https://www.laverdadsantiago.com.ar/",
-        "selector_lista": "h2 a, h3 a, article a",
-        "selector_titulo": "h1, h1.entry-title",
-        "selector_cuerpo": "div.entry-content p, article p",
-        "selector_imagen": "figure img, article img",
-        "selector_fecha": "time, .entry-date",
-        "categoria": "interior",
-        "credito": "La Verdad Santiago"
-    },
-    # ── Nacionales ──
-    {
-        "nombre": "La Nacion Politica",
-        "url": "https://www.lanacion.com.ar/politica/",
-        "selector_lista": "h2 a, h3 a, article a",
-        "selector_titulo": "h1.headline, h1",
-        "selector_cuerpo": "div.article-body p, div.body-article p, article p",
-        "selector_imagen": "figure img, article img, picture img",
-        "selector_fecha": "time, .article-date, span.date",
-        "categoria": "politica",
-        "credito": "La Nacion"
+        "categoria": "deportes",
+        "credito": "Ole",
+        "es_sde": False
     },
     {
-        "nombre": "La Nacion Espectaculos",
-        "url": "https://www.lanacion.com.ar/espectaculos/",
-        "selector_lista": "h2 a, h3 a, article a, a[href*='/espectaculos/']",
-        "selector_titulo": "h1.headline, h1",
-        "selector_cuerpo": "div.article-body p, div.body-article p, article p",
-        "selector_imagen": "figure img, article img, picture img",
-        "selector_fecha": "time, .article-date, span.date",
-        "categoria": "espectaculos",
-        "credito": "La Nacion"
-    },
-    {
-        "nombre": "Infobae Sociedad",
-        "url": "https://www.infobae.com/sociedad/",
+        "nombre": "Infobae Judiciales",
+        "url": "https://www.infobae.com/judiciales/",
         "selector_lista": "h2 a, h3 a, article a",
         "selector_titulo": "h1, h1.article-headline",
         "selector_cuerpo": "div.article-body p, article p",
         "selector_imagen": "figure img, article img",
         "selector_fecha": "time, span.date",
-        "categoria": "sociedad",
-        "credito": "Infobae"
-    },
-    {
-        "nombre": "Clarin Deportes",
-        "url": "https://www.clarin.com/deportes/",
-        "selector_lista": "h2 a, h3 a, article a",
-        "selector_titulo": "h1, h1.title",
-        "selector_cuerpo": "div.body-nota p, article p",
-        "selector_imagen": "figure img, article img",
-        "selector_fecha": "time, span.date",
-        "categoria": "deportes",
-        "credito": "Clarin"
-    },
-    {
-        "nombre": "TN Politica",
-        "url": "https://tn.com.ar/politica/",
-        "selector_lista": "h2 a, h3 a, article a",
-        "selector_titulo": "h1, h1.article__headline",
-        "selector_cuerpo": "div.article__body p, article p",
-        "selector_imagen": "figure img, article img",
-        "selector_fecha": "time, span.date",
-        "categoria": "politica",
-        "credito": "TN"
+        "categoria": "judiciales",
+        "credito": "Infobae",
+        "es_sde": False
     }
 ]
 
-CATEGORIAS = {
-    "policiales": "policiales",
-    "espectaculos": "espectaculos",
-    "judiciales": "judiciales",
-    "deportes": "deportes",
-    "politica": "politica",
-    "sociedad": "sociedad",
-    "interior": "interior",
-    "economia": "economia"
+# Colores de autor por categoria (campo diarioinfo)
+AUTHOR_COLORS = {
+    "policiales":  "#CC0000",   # rojo
+    "judiciales":  "#6A0DAD",   # morado
+    "politica":    "#003399",   # azul
+    "deportes":    "#006600",   # verde
+    "espectaculos":"#FF6600",   # naranja
+    "interior":    "#8B4513",   # marron
+    "sociedad":    "#555555",   # gris
+    "economia":    "#555555"    # gris
 }
+
+# Color de prefijo "Redaccion" para fuentes SDE
+AUTHOR_PREFIX_COLOR_SDE      = "#00AADD"   # celeste
+AUTHOR_PREFIX_COLOR_NACIONAL = "#555555"   # gris
+
+CATEGORIAS = {
+    "policiales":  "policiales",
+    "espectaculos":"espectaculos",
+    "judiciales":  "judiciales",
+    "deportes":    "deportes",
+    "politica":    "politica",
+    "sociedad":    "sociedad",
+    "interior":    "interior",
+    "economia":    "economia"
+}}
 
 
 URLS_FILE = "/home/diarioin/scripts/urls_procesadas.json"
@@ -638,11 +671,12 @@ def conectar_mongo():
         return None, None
 
 
-def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_original, imagen_url, credito_imagen):
+def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_original, imagen_url, credito_imagen, es_sde=False):
     """Inserta un articulo en MongoDB como DRAFT con imagen y slug."""
     try:
         fecha_ahora = datetime.now(timezone.utc)
         titulo = nota_reescrita['titulo']
+        fuente_categoria = categoria_id  # para color de author
 
         # ── Generar slug unico ───────────────────────────────────────────────
         slug = generar_slug(titulo)
@@ -676,6 +710,8 @@ def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_orig
             "sourceUrl": url_original,
             "slug": slug,
             "author": "Redaccion DiarioInfo",
+            "authorColor": AUTHOR_COLORS.get(fuente_categoria, "#555555"),
+            "authorPrefixColor": AUTHOR_PREFIX_COLOR_SDE if es_sde else AUTHOR_PREFIX_COLOR_NACIONAL,
             "createdBy": "agregador-automatico",
             "createdAt": fecha_ahora,
             "updatedAt": fecha_ahora,
@@ -692,6 +728,26 @@ def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_orig
     except Exception as e:
         logger.error(f"Error insertando articulo MongoDB: {e}")
         return False
+
+
+def normalizar_titulo(titulo):
+    """Normaliza un titulo para comparacion de similitud."""
+    import unicodedata, re
+    s = titulo.lower().strip()
+    s = unicodedata.normalize('NFD', s)
+    s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+    s = re.sub(r'[^a-z0-9 ]', '', s)
+    return s
+
+def titulos_similares(t1, t2, umbral=0.70):
+    """Devuelve True si dos titulos son similares (>= umbral de palabras en comun)."""
+    w1 = set(normalizar_titulo(t1).split())
+    w2 = set(normalizar_titulo(t2).split())
+    if not w1 or not w2:
+        return False
+    interseccion = w1 & w2
+    similitud = len(interseccion) / max(len(w1), len(w2))
+    return similitud >= umbral
 
 
 def main():
@@ -713,6 +769,7 @@ def main():
         return
 
     total_publicados = 0
+    titulos_esta_ejecucion = []  # para deduplicacion entre fuentes
 
     # Procesar cada fuente
     for fuente in FUENTES:
@@ -747,6 +804,14 @@ def main():
                     "cuerpo": articulo['cuerpo']
                 }
 
+            # Deduplicacion: saltar si titulo similar ya fue publicado esta ejecucion
+            titulo_candidato = nota_reescrita.get('titulo', articulo.get('titulo', ''))
+            if fuente.get('es_sde', False):
+                if any(titulos_similares(titulo_candidato, t) for t in titulos_esta_ejecucion):
+                    logger.info(f"  [SKIP-DEDUP] Titulo similar ya existe: {titulo_candidato[:60]}")
+                    guardar_url_procesada(url, urls_procesadas)
+                    continue
+
             # Publicar en MongoDB
             categoria_id = CATEGORIAS[fuente['categoria']]
             if publicar_articulo(
@@ -756,9 +821,11 @@ def main():
                 col_files,
                 url,
                 articulo.get('imagen_url'),
-                articulo.get('credito_imagen', fuente.get('credito', ''))
+                articulo.get('credito_imagen', fuente.get('credito', '')),
+                es_sde=fuente.get('es_sde', False)
             ):
                 guardar_url_procesada(url, urls_procesadas)
+                titulos_esta_ejecucion.append(titulo_candidato)
                 publicados_fuente += 1
                 total_publicados += 1
 
