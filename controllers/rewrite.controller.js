@@ -21,11 +21,16 @@ exports.rewrite = async (req, res) => {
   }
 
   const prompt =
-    "Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.\n" +
-    "Reescribe esta noticia de " + (categoria || "general") + " en formato periodistico profesional.\n" +
-    "La nota debe ser original, no inventar datos.\n" +
-    'Responde SOLO con JSON valido sin markdown: {"titulo": "max 100 chars", "copete": "max 200 chars", "cuerpo": "min 300 chars"}\n\n' +
-    "NOTICIA ORIGINAL:\n" +
+    "Eres el editor periodistico del Diario Info de Santiago del Estero, Argentina.\n" +
+    "Tu tarea es REESCRIBIR completamente esta noticia de " + (categoria || "general") + " para nuestra editorial.\n" +
+    "REGLAS OBLIGATORIAS:\n" +
+    "1. TITULO: Debe ser 100% original y creativo. PROHIBIDO copiar, traducir o parafrasear el titulo original. Usa un enfoque editorial propio. Maximo 100 caracteres.\n" +
+    "2. COPETE (bajada): Debe ser una sintesis editorial propia. PROHIBIDO repetir frases del titulo original ni del cuerpo original. Maximo 200 caracteres.\n" +
+    "3. CUERPO: Minimo 3 parrafos separados por doble salto de linea (\\n\\n). Cada parrafo debe terminar con punto. No inventar datos pero reformular todo con voz propia. Minimo 300 caracteres.\n" +
+    "4. El cuerpo NO debe ser un texto continuo sin pausas. Cada parrafo es una idea completa separada visualmente.\n" +
+    "Responde SOLO con JSON valido sin markdown ni bloques de codigo:\n" +
+    '{"titulo": "titulo editorial original", "copete": "bajada editorial propia", "cuerpo": "parrafo 1...\\n\\nparrafo 2...\\n\\nparrafo 3..."}\n\n' +
+    "NOTICIA ORIGINAL (solo para extraer los hechos, no para copiar):\n" +
     "Titulo: " + titulo + "\n" +
     "Cuerpo: " + cuerpo.substring(0, 2000);
 
