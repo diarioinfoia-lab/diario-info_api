@@ -297,6 +297,25 @@ AUTHOR_COLORS = {
 AUTHOR_PREFIX_COLOR_SDE      = "#00AADD"   # celeste
 AUTHOR_PREFIX_COLOR_NACIONAL = "#555555"   # gris
 
+# Etiqueta codificada del autor segun origen y categoria
+AUTHOR_CATEGORY_LABELS = {
+    "policiales":   "Policiales",
+    "judiciales":   "Judiciales",
+    "politica":     "Política",
+    "deportes":     "Deportes",
+    "espectaculos": "Espectáculos",
+    "interior":     "Interior",
+    "sociedad":     "General",
+    "economia":     "Economía"
+}
+
+def generar_autor_codificado(categoria_id, es_sde=False):
+    """Genera el texto codificado del autor: Red-info SDE-Policiales / NAC-Deportes etc."""
+    prefijo = "SDE" if es_sde else "NAC"
+    etiqueta = AUTHOR_CATEGORY_LABELS.get(categoria_id, categoria_id.capitalize())
+    return "Red-info " + prefijo + "-" + etiqueta
+
+
 CATEGORIAS = {
     "policiales":  "policiales",
     "espectaculos":"espectaculos",
@@ -706,7 +725,7 @@ def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_orig
             "articleType": "nota",
             "sourceUrl": url_original,
             "slug": slug,
-            "author": "Redaccion DiarioInfo",
+            "author": generar_autor_codificado(fuente_categoria, es_sde),
             "authorColor": AUTHOR_COLORS.get(fuente_categoria, "#555555"),
             "authorPrefixColor": AUTHOR_PREFIX_COLOR_SDE if es_sde else AUTHOR_PREFIX_COLOR_NACIONAL,
             "createdBy": "agregador-automatico",
