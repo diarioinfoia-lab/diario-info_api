@@ -39,7 +39,7 @@ MONGO_FILES_COL  = "files"
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_MODEL   = "claude-3-5-haiku-20241022"  # rapido y economico para reescritura
+ANTHROPIC_MODEL   = "claude-3-haiku-20240307"  # haiku estable
 
 HORAS_MAX        = 2   # Solo noticias de las ultimas N horas
 
@@ -588,7 +588,11 @@ def reescribir_con_claude(articulo, categoria):
         result = json.loads(text.strip())
         return result
     except Exception as e:
-        logger.error(f"Error con Claude API: {e}")
+        err_body = ""
+        try:
+            err_body = resp.text[:500]
+        except: pass
+        logger.error(f"Error con Claude API: {e} | body: {err_body}")
         return None
 
 def registrar_imagen_en_files(col_files, imagen_url, credito, titulo_articulo):
