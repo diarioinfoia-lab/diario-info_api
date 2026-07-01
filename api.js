@@ -93,5 +93,6 @@ api.use(require("./routes/playlist.router"));
 api.use(require("./routes/log.router"));
 
 api.use(require('./routes/pdf.router'));
+api.use(require('./routes/rewrite.router'));
 
 module.exports = api;
