@@ -39,7 +39,7 @@ MONGO_FILES_COL  = "files"
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_MODEL   = "claude-haiku-3-5-20241022"  # rapido y economico para reescritura
+ANTHROPIC_MODEL   = "claude-3-5-haiku-20241022"  # rapido y economico para reescritura
 
 HORAS_MAX        = 2   # Solo noticias de las ultimas N horas
 
@@ -71,7 +71,7 @@ FUENTES = [
     },
     {
         "nombre": "El Liberal Deportes",
-        "url": "https://www.elliberal.com.ar/deportes/",
+        "url": "https://www.elliberal.com.ar/Deportivo",
         "selector_lista": "a[href*='/nota/']",
         "selector_titulo": "h1.nota__title, h1.article__title, h1",
         "selector_cuerpo": "div.nota__body p, div.article__body p, article p",
@@ -84,7 +84,7 @@ FUENTES = [
     # ── SDE: Diario Panorama ─────────────────────────────────────────────────────
     {
         "nombre": "Diario Panorama Policiales",
-        "url": "https://www.diariopanorama.com/seccion/policiales_22",
+        "url": "https://www.diariopanorama.com/secciones/14/policiales",
         "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
         "selector_titulo": "h1.article-title, h1.entry-title, h1",
         "selector_cuerpo": "div.article-body p, div.entry-content p, article p",
@@ -96,7 +96,7 @@ FUENTES = [
     },
     {
         "nombre": "Diario Panorama Politica",
-        "url": "https://www.diariopanorama.com/seccion/politica_2",
+        "url": "https://www.diariopanorama.com/secciones/16/pais",
         "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
         "selector_titulo": "h1.article-title, h1.entry-title, h1",
         "selector_cuerpo": "div.article-body p, div.entry-content p, article p",
@@ -108,7 +108,7 @@ FUENTES = [
     },
     {
         "nombre": "Diario Panorama Deportes",
-        "url": "https://www.diariopanorama.com/seccion/deportes_3",
+        "url": "https://www.diariopanorama.com/secciones/48/somos-deporte",
         "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
         "selector_titulo": "h1.article-title, h1.entry-title, h1",
         "selector_cuerpo": "div.article-body p, div.entry-content p, article p",
@@ -120,7 +120,7 @@ FUENTES = [
     },
     {
         "nombre": "Diario Panorama Espectaculos",
-        "url": "https://www.diariopanorama.com/seccion/espectaculos_47",
+        "url": "https://www.diariopanorama.com/secciones/18/espectaculos",
         "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
         "selector_titulo": "h1.article-title, h1.entry-title, h1",
         "selector_cuerpo": "div.article-body p, div.entry-content p, article p",
@@ -134,7 +134,7 @@ FUENTES = [
     {
         "nombre": "Nuevo Diario Web",
         "url": "https://www.nuevodiarioweb.com.ar/",
-        "selector_lista": "h2 a, h3 a, article a, a[href*='/nota/']",
+        "selector_lista": "a[href*='/noticia/']",
         "selector_titulo": "h1.title, h1.article-title, h1",
         "selector_cuerpo": "div.article-body p, div.content p, article p",
         "selector_imagen": "div.article-image img, figure img, article img",
