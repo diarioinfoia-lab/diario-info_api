@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Agregador de Noticias - DiarioInfo
-Scrapea fuentes, reescribe con Gemini, inserta en MongoDB como DRAFT con imagen y slug.
-Filtra noticias de las ultimas 5 horas.
+Filtra noticias de las ultimas 2 horas. v9: 20 fuentes (El Liberal 4, Panorama 4, interior SDE 6, nacionales 6).
 """
 
 import requests
@@ -44,6 +43,7 @@ GEMINI_API_URL   = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 HORAS_MAX        = 2   # Solo noticias de las ultimas N horas
 
 FUENTES = [
+    # ── El Liberal (SDE capital) ──
     {
         "nombre": "El Liberal Policiales",
         "url": "https://www.elliberal.com.ar/policiales/",
@@ -56,6 +56,40 @@ FUENTES = [
         "credito": "El Liberal"
     },
     {
+        "nombre": "El Liberal Politica",
+        "url": "https://www.elliberal.com.ar/politica/",
+        "selector_lista": "a[href*='/nota/']",
+        "selector_titulo": "h1.nota__title, h1.article__title, h1",
+        "selector_cuerpo": "div.nota__body p, div.article__body p, article p",
+        "selector_imagen": "div.nota__image img, div.article__image img, figure img, article img",
+        "selector_fecha": "time, span.fecha, .nota__date, .article__date",
+        "categoria": "politica",
+        "credito": "El Liberal"
+    },
+    {
+        "nombre": "El Liberal Deportes",
+        "url": "https://www.elliberal.com.ar/deportes/",
+        "selector_lista": "a[href*='/nota/']",
+        "selector_titulo": "h1.nota__title, h1.article__title, h1",
+        "selector_cuerpo": "div.nota__body p, div.article__body p, article p",
+        "selector_imagen": "div.nota__image img, div.article__image img, figure img, article img",
+        "selector_fecha": "time, span.fecha, .nota__date, .article__date",
+        "categoria": "deportes",
+        "credito": "El Liberal"
+    },
+    {
+        "nombre": "El Liberal Sociedad",
+        "url": "https://www.elliberal.com.ar/sociedad/",
+        "selector_lista": "a[href*='/nota/']",
+        "selector_titulo": "h1.nota__title, h1.article__title, h1",
+        "selector_cuerpo": "div.nota__body p, div.article__body p, article p",
+        "selector_imagen": "div.nota__image img, div.article__image img, figure img, article img",
+        "selector_fecha": "time, span.fecha, .nota__date, .article__date",
+        "categoria": "sociedad",
+        "credito": "El Liberal"
+    },
+    # ── Diario Panorama (SDE capital) ──
+    {
         "nombre": "Diario Panorama Policiales",
         "url": "https://www.diariopanorama.com/seccion/policiales_22",
         "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
@@ -64,6 +98,28 @@ FUENTES = [
         "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
         "selector_fecha": "time, .article-date, .entry-date, span.date",
         "categoria": "policiales",
+        "credito": "Diario Panorama"
+    },
+    {
+        "nombre": "Diario Panorama Politica",
+        "url": "https://www.diariopanorama.com/seccion/politica_2",
+        "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
+        "selector_titulo": "h1.article-title, h1.entry-title, h1",
+        "selector_cuerpo": "div.article-body p, div.entry-content p, article p",
+        "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
+        "selector_fecha": "time, .article-date, .entry-date, span.date",
+        "categoria": "politica",
+        "credito": "Diario Panorama"
+    },
+    {
+        "nombre": "Diario Panorama Deportes",
+        "url": "https://www.diariopanorama.com/seccion/deportes_3",
+        "selector_lista": "h2 a, h3 a, .news-title a, a[href*='/noticia/']",
+        "selector_titulo": "h1.article-title, h1.entry-title, h1",
+        "selector_cuerpo": "div.article-body p, div.entry-content p, article p",
+        "selector_imagen": "div.article-image img, div.featured-image img, figure img, article img",
+        "selector_fecha": "time, .article-date, .entry-date, span.date",
+        "categoria": "deportes",
         "credito": "Diario Panorama"
     },
     {
@@ -77,24 +133,147 @@ FUENTES = [
         "categoria": "espectaculos",
         "credito": "Diario Panorama"
     },
+    # ── Interior SDE: Nuevo Diario (Termas de Rio Hondo) ──
+    {
+        "nombre": "Nuevo Diario Web",
+        "url": "https://www.nuevodiarioweb.com.ar/",
+        "selector_lista": "h2 a, h3 a, article a, a[href*='/nota/']",
+        "selector_titulo": "h1.title, h1.article-title, h1",
+        "selector_cuerpo": "div.article-body p, div.content p, article p",
+        "selector_imagen": "div.article-image img, figure img, article img",
+        "selector_fecha": "time, span.date, .article-date",
+        "categoria": "interior",
+        "credito": "Nuevo Diario Web"
+    },
+    # ── Interior SDE: Semanario Conciencia (Frías) ──
+    {
+        "nombre": "Semanario Conciencia",
+        "url": "https://www.semanarioconciencia.com/",
+        "selector_lista": "h2 a, h3 a, .entry-title a, article a",
+        "selector_titulo": "h1.entry-title, h1",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, .wp-post-image, article img",
+        "selector_fecha": "time, .entry-date, span.fecha",
+        "categoria": "interior",
+        "credito": "Semanario Conciencia"
+    },
+    # ── Interior SDE: El Siglo SDE (Añatuya / Quimilí) ──
+    {
+        "nombre": "El Siglo SDE",
+        "url": "https://www.elsigloweb.com/",
+        "selector_lista": "h2 a, h3 a, article a, .entry-title a",
+        "selector_titulo": "h1.entry-title, h1",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, article img, .wp-post-image",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "El Siglo"
+    },
+    # ── Interior SDE: Info Santiago ──
+    {
+        "nombre": "Info Santiago",
+        "url": "https://www.infosantiago.com.ar/",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.title",
+        "selector_cuerpo": "article p, div.content p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, span.date",
+        "categoria": "interior",
+        "credito": "Info Santiago"
+    },
+    # ── Interior SDE: La Razon de Loreto ──
+    {
+        "nombre": "La Razon de Loreto",
+        "url": "https://www.larazondelor.com.ar/",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.entry-title",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "La Razon de Loreto"
+    },
+    # ── Interior SDE: La Verdad Santiago ──
+    {
+        "nombre": "La Verdad Santiago",
+        "url": "https://www.laverdadsantiago.com.ar/",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.entry-title",
+        "selector_cuerpo": "div.entry-content p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, .entry-date",
+        "categoria": "interior",
+        "credito": "La Verdad Santiago"
+    },
+    # ── Nacionales ──
+    {
+        "nombre": "La Nacion Politica",
+        "url": "https://www.lanacion.com.ar/politica/",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1.headline, h1",
+        "selector_cuerpo": "div.article-body p, div.body-article p, article p",
+        "selector_imagen": "figure img, article img, picture img",
+        "selector_fecha": "time, .article-date, span.date",
+        "categoria": "politica",
+        "credito": "La Nacion"
+    },
     {
         "nombre": "La Nacion Espectaculos",
         "url": "https://www.lanacion.com.ar/espectaculos/",
         "selector_lista": "h2 a, h3 a, article a, a[href*='/espectaculos/']",
         "selector_titulo": "h1.headline, h1",
         "selector_cuerpo": "div.article-body p, div.body-article p, article p",
-        "selector_imagen": "div.article-image img, figure img, picture img, article img",
-        "selector_fecha": "time, span.fecha, .article-date",
+        "selector_imagen": "figure img, article img, picture img",
+        "selector_fecha": "time, .article-date, span.date",
         "categoria": "espectaculos",
         "credito": "La Nacion"
+    },
+    {
+        "nombre": "Infobae Sociedad",
+        "url": "https://www.infobae.com/sociedad/",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.article-headline",
+        "selector_cuerpo": "div.article-body p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, span.date",
+        "categoria": "sociedad",
+        "credito": "Infobae"
+    },
+    {
+        "nombre": "Clarin Deportes",
+        "url": "https://www.clarin.com/deportes/",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.title",
+        "selector_cuerpo": "div.body-nota p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, span.date",
+        "categoria": "deportes",
+        "credito": "Clarin"
+    },
+    {
+        "nombre": "TN Politica",
+        "url": "https://tn.com.ar/politica/",
+        "selector_lista": "h2 a, h3 a, article a",
+        "selector_titulo": "h1, h1.article__headline",
+        "selector_cuerpo": "div.article__body p, article p",
+        "selector_imagen": "figure img, article img",
+        "selector_fecha": "time, span.date",
+        "categoria": "politica",
+        "credito": "TN"
     }
 ]
 
 CATEGORIAS = {
     "policiales": "policiales",
     "espectaculos": "espectaculos",
-    "judiciales": "judiciales"
+    "judiciales": "judiciales",
+    "deportes": "deportes",
+    "politica": "politica",
+    "sociedad": "sociedad",
+    "interior": "interior",
+    "economia": "economia"
 }
+
 
 URLS_FILE = "/home/diarioin/scripts/urls_procesadas.json"
 
