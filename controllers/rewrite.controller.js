@@ -1,7 +1,7 @@
 const fetch = require("node-fetch");
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_MODEL   = "claude-3-haiku-20240307";
+ANTHROPIC_MODEL   = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022";
 
 /**
  * POST /rewrite
@@ -68,3 +68,5 @@ exports.rewrite = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+// model: claude-3-5-sonnet-20241022
