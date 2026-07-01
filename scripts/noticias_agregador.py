@@ -37,8 +37,9 @@ MONGO_DB         = "diarioinfo-db"
 MONGO_COLLECTION = "articles"
 MONGO_FILES_COL  = "files"
 
-GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_API_URL   = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL   = "claude-haiku-3-5-20241022"  # rapido y economico para reescritura
 
 HORAS_MAX        = 2   # Solo noticias de las ultimas N horas
 
@@ -530,13 +531,12 @@ def scrape_articulo(url, fuente):
         return None
 
 
-def reescribir_con_gemini(articulo, categoria):
-    """Usa Gemini para reescribir el articulo en formato DiarioInfo."""
-    prompt = f"""
-Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.
+def reescribir_con_claude(articulo, categoria):
+    """Usa Claude (Anthropic) para reescribir el articulo en formato DiarioInfo."""
+    prompt = f"""Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.
 Reescribe la siguiente noticia de {categoria} en formato periodistico profesional.
-La nota debe ser original, no copiar textualmente la fuente ni tampoco inventar nada.
-Responde SOLO con un JSON con esta estructura exacta:
+La nota debe ser original, no copiar textualmente la fuente ni tampoco inventar nada que no este en el texto original.
+Responde SOLO con un JSON valido con esta estructura exacta (sin markdown, sin bloques de codigo):
 {{
   "titulo": "Titulo atractivo y periodistico (max 100 chars)",
   "copete": "Primer parrafo breve que resume la noticia (max 200 chars)",
@@ -545,25 +545,26 @@ Responde SOLO con un JSON con esta estructura exacta:
 
 NOTICIA ORIGINAL:
 Titulo: {articulo['titulo']}
-Cuerpo: {articulo['cuerpo'][:1500]}
+Cuerpo: {articulo['cuerpo'][:2000]}
 """
     try:
-        if not GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY no configurada")
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024}
+        if not ANTHROPIC_API_KEY:
+            raise ValueError("ANTHROPIC_API_KEY no configurada")
+        headers = {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
         }
-        resp = requests.post(
-            f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
-            json=payload,
-            timeout=30
-        )
+        payload = {
+            "model": ANTHROPIC_MODEL,
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        resp = requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        text = data['candidates'][0]["content"]["parts"][0]["text"]
-        # Limpiar markdown si viene con json
-        text = text.strip()
+        text = data["content"][0]["text"].strip()
+        # Limpiar markdown si viene con bloques de codigo
         if text.startswith("```"):
             text = text.split("```")[1]
             if text.startswith("json"):
@@ -571,7 +572,7 @@ Cuerpo: {articulo['cuerpo'][:1500]}
         result = json.loads(text.strip())
         return result
     except Exception as e:
-        logger.error(f"Error con Gemini: {e}")
+        logger.error(f"Error con Claude API: {e}")
         return None
 
 
@@ -795,9 +796,9 @@ def main():
                 continue
 
             # Reescribir con Gemini (con fallback)
-            nota_reescrita = reescribir_con_gemini(articulo, fuente['categoria'])
+            nota_reescrita = reescribir_con_claude(articulo, fuente['categoria'])
             if not nota_reescrita:
-                logger.warning(f"Gemini no disponible, usando contenido original")
+                logger.warning(f"Claude API no disponible, usando contenido original")
                 nota_reescrita = {
                     "titulo": articulo['titulo'],
                     "copete": articulo['cuerpo'][:200].split('.')[0] + ".",
