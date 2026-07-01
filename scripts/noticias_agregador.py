@@ -306,7 +306,7 @@ CATEGORIAS = {
     "sociedad":    "sociedad",
     "interior":    "interior",
     "economia":    "economia"
-}}
+}
 
 
 URLS_FILE = "/home/diarioin/scripts/urls_procesadas.json"
