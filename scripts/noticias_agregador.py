@@ -533,20 +533,16 @@ def scrape_articulo(url, fuente):
 
 def reescribir_con_claude(articulo, categoria):
     """Usa Claude (Anthropic) para reescribir el articulo en formato DiarioInfo."""
-    prompt = f"""Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.
-Reescribe la siguiente noticia de {categoria} en formato periodistico profesional.
-La nota debe ser original, no copiar textualmente la fuente ni tampoco inventar nada que no este en el texto original.
-Responde SOLO con un JSON valido con esta estructura exacta (sin markdown, sin bloques de codigo):
-{{
-  "titulo": "Titulo atractivo y periodistico (max 100 chars)",
-  "copete": "Primer parrafo breve que resume la noticia (max 200 chars)",
-  "cuerpo": "Cuerpo completo de la nota bien redactado (min 300 chars)"
-}}
-
-NOTICIA ORIGINAL:
-Titulo: {articulo['titulo']}
-Cuerpo: {articulo['cuerpo'][:2000]}
-"""
+    esquema = '{"titulo": "...", "copete": "...", "cuerpo": "..."}'
+    prompt = (
+        'Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.\n'
+        f'Reescribe esta noticia de {categoria} en formato periodistico profesional.\n'
+        'La nota debe ser original, no inventar datos.\n'
+        'Responde SOLO con JSON valido sin markdown: {"titulo": "max 100 chars", "copete": "max 200 chars", "cuerpo": "min 300 chars"}\n\n'
+        'NOTICIA ORIGINAL:\n'
+        f'Titulo: {articulo["titulo"]}\n'
+        f'Cuerpo: {articulo["cuerpo"][:2000]}'
+    )
     try:
         if not ANTHROPIC_API_KEY:
             raise ValueError("ANTHROPIC_API_KEY no configurada")
@@ -564,9 +560,10 @@ Cuerpo: {articulo['cuerpo'][:2000]}
         resp.raise_for_status()
         data = resp.json()
         text = data["content"][0]["text"].strip()
-        # Limpiar markdown si viene con bloques de codigo
-        if text.startswith("```"):
-            text = text.split("```")[1]
+        # Eliminar bloque markdown si existe
+        if "```" in text:
+            partes = text.split("```")
+            text = partes[1] if len(partes) > 1 else text
             if text.startswith("json"):
                 text = text[4:]
         result = json.loads(text.strip())
@@ -574,7 +571,6 @@ Cuerpo: {articulo['cuerpo'][:2000]}
     except Exception as e:
         logger.error(f"Error con Claude API: {e}")
         return None
-
 
 def registrar_imagen_en_files(col_files, imagen_url, credito, titulo_articulo):
     """Registra la imagen externa en la coleccion files y retorna su ObjectId."""
