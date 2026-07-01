@@ -934,9 +934,18 @@ def generar_pagina_interior(c, nota, num_pag):
         if desborde:
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
+            _nota_url = nota.get("url", "https://diarioinfo.com")
             _mira_txt = ">> Mira la NOTA completa en nuestro Portal: diarioinfo.com"
             _mira_w   = c.stringWidth(_mira_txt, FUI_R, 8)
-            c.drawString(x_col2 + col_cw - _mira_w, PIE_Y + 2*mm, _mira_txt)
+            _mira_x   = x_col2 + col_cw - _mira_w
+            _mira_y   = PIE_Y + 2*mm
+            c.drawString(_mira_x, _mira_y, _mira_txt)
+            c.linkAnnotation(
+                "rect",
+                Rect=(_mira_x, _mira_y - 2, _mira_x + _mira_w, _mira_y + 8),
+                Contents=_nota_url,
+                A={"S": "URI", "URI": _nota_url}
+            )
 
     # Pie
     draw_pie(c, W, M, PIE_Y - 4*mm)
