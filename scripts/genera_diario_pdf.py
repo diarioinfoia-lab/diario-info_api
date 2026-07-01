@@ -709,7 +709,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
         # ── LAYOUT A: ratio >= 1.45 (apaisada 3:2, 16:9) ────────────────────────
         # Foto ocupa las 2 columnas (ancho completo de pagina)
         # Titulo completo debajo de la foto
-        if ratio_p >= 1.45:
+        if True:  # v3.42 siempre Layout A (foto crop centrado a 16:9)
             IMG_W  = W               # full bleed
             IMG_H  = IMG_W * (9.0/16.0)
             IMG_X  = 0
@@ -741,42 +741,6 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             c.setLineWidth(0.5)
             c.line(M, ty - (2*mm- 5*mm), W - M, ty - (2*mm- 5*mm))
 
-        # ── LAYOUT B: ratio < 1.5 (vertical, cuadrada, 4:3, 9:16) ──────────────
-        # Foto en 1 columna izq, titulo completo en columna der al mismo Y
-        else:
-            area_h  = Y_EDIT - Y_SEC_TOP
-            IMG_W   = COL2 - 3*mm
-            IMG_H   = min(area_h - 20*mm, IMG_W * (4.0/3.0))
-            IMG_X   = M
-            IMG_TOP = Y_EDIT - 2*mm
-            IMG_BOT = IMG_TOP - IMG_H
-            draw_image_bleed(c, ir_p, iw_p, ih_p, IMG_X, IMG_BOT, IMG_W, IMG_H)
-
-            # Titulo columna derecha, arranca al mismo Y que la foto (alineado top)
-            TIT_X = M + COL2 + 3*mm
-            TIT_W = (W - M) - TIT_X     # ancho disponible hasta margen derecho
-            ty    = IMG_TOP - TIT_LH     # baseline primera linea = top imagen
-            # (sin categoria en nota de 1 columna - Layout B)
-            c.setFont(FTI_B, TIT_PTS)
-            c.setFillColorRGB(*NEGRO)
-            for ln in wrap_lines(c, titulo, TIT_W, FTI_B, TIT_PTS):
-                if ty < IMG_BOT - 5*mm: break
-                c.drawString(TIT_X, ty, ln)
-                ty -= TIT_LH
-
-            # Bajada ancho completo debajo de imagen
-            by = IMG_BOT - 5*mm
-            c.setFont(FTI_R, 10)
-            c.setFillColorRGB(*GRIS_TXT)
-            for bl_ln in wrap_lines(c, bajada, W - 2*M, FTI_R, 10)[:2]:
-                if by < Y_SEC_TOP + 2*mm: break
-                c.drawCentredString(W/2, by, bl_ln)
-                by -= 5*mm
-
-            # Separador
-            c.setStrokeColorRGB(*GRIS_L)
-            c.setLineWidth(0.5)
-            c.line(M, by - 2*mm, W - M, by - 2*mm)
 
     # ── NOTAS SECUNDARIAS: 3 columnas ───────────────────────────────────────────
     notas_sec = notas[1:4]
