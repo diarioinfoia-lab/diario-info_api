@@ -776,7 +776,7 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
             # Separador
             c.setStrokeColorRGB(*GRIS_L)
             c.setLineWidth(0.5)
-            c.line(M, by - 2*mm, W - M, by - 2*mm)
+            c.line(M, by - 4*mm, W - M, by - 4*mm)
 
     # ── NOTAS SECUNDARIAS: 3 columnas ───────────────────────────────────────────
     notas_sec = notas[1:4]
