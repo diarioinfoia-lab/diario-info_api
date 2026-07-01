@@ -38,8 +38,7 @@ MONGO_COLLECTION = "articles"
 MONGO_FILES_COL  = "files"
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_MODEL   = "claude-3-haiku-20240307"  # haiku estable
+VERCEL_REWRITE_URL = "https://diario-info-api.vercel.app/rewrite"
 
 HORAS_MAX        = 2   # Solo noticias de las ultimas N horas
 
@@ -551,41 +550,19 @@ def scrape_articulo(url, fuente):
 
 
 def reescribir_con_claude(articulo, categoria):
-    """Usa Claude (Anthropic) para reescribir el articulo en formato DiarioInfo."""
-    esquema = '{"titulo": "...", "copete": "...", "cuerpo": "..."}'
-    prompt = (
-        'Eres un redactor periodistico del Diario Info de Santiago del Estero, Argentina.\n'
-        f'Reescribe esta noticia de {categoria} en formato periodistico profesional.\n'
-        'La nota debe ser original, no inventar datos.\n'
-        'Responde SOLO con JSON valido sin markdown: {"titulo": "max 100 chars", "copete": "max 200 chars", "cuerpo": "min 300 chars"}\n\n'
-        'NOTICIA ORIGINAL:\n'
-        f'Titulo: {articulo["titulo"]}\n'
-        f'Cuerpo: {articulo["cuerpo"][:2000]}'
-    )
+    """Usa Claude via proxy Vercel para reescribir el articulo en formato DiarioInfo."""
     try:
-        if not ANTHROPIC_API_KEY:
-            raise ValueError("ANTHROPIC_API_KEY no configurada")
-        headers = {
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json"
-        }
         payload = {
-            "model": ANTHROPIC_MODEL,
-            "max_tokens": 1024,
-            "messages": [{"role": "user", "content": prompt}]
+            "titulo":    articulo["titulo"],
+            "cuerpo":    articulo["cuerpo"][:2000],
+            "categoria": categoria,
+            "apiKey":    ANTHROPIC_API_KEY
         }
-        resp = requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=30)
+        resp = requests.post(VERCEL_REWRITE_URL, json=payload, timeout=30)
         resp.raise_for_status()
-        data = resp.json()
-        text = data["content"][0]["text"].strip()
-        # Eliminar bloque markdown si existe
-        if "```" in text:
-            partes = text.split("```")
-            text = partes[1] if len(partes) > 1 else text
-            if text.startswith("json"):
-                text = text[4:]
-        result = json.loads(text.strip())
+        result = resp.json()
+        if "error" in result:
+            raise ValueError(result["error"])
         return result
     except Exception as e:
         err_body = ""
