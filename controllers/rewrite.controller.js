@@ -75,3 +75,44 @@ exports.rewrite = async (req, res) => {
 };
 
 // model: claude-3-5-sonnet-20241022
+
+
+/**
+ * GET /articles-hoy
+ * Devuelve las 15 notas publicadas de hoy ordenadas por publicationDate DESC
+ * Endpoint de diagnostico temporal
+ */
+exports.articulosHoy = async (req, res) => {
+  try {
+    const mongoose = require("mongoose");
+    const db = mongoose.connection.db;
+    if (!db) return res.status(500).json({ error: "No hay conexion a MongoDB" });
+
+    const now = new Date();
+    // Rango: ayer 21:00 UTC (= hoy 00:00 AR, UTC-3) hasta hoy 23:59:59 UTC
+    const hoyFin = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59));
+    const ayerInicio = new Date(hoyFin);
+    ayerInicio.setUTCDate(ayerInicio.getUTCDate() - 1);
+    ayerInicio.setUTCHours(0, 0, 0, 0);
+
+    const articles = await db.collection("articles").find(
+      { status: "published", publicationDate: { $gte: ayerInicio, $lte: hoyFin } }
+    ).sort({ publicationDate: -1, priority: -1 }).limit(15).toArray();
+
+    const result = articles.map((a, i) => ({
+      n: i + 1,
+      titulo: a.title || a.titulo || "(sin titulo)",
+      fecha: a.publicationDate ? new Date(a.publicationDate).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "sin fecha",
+      categoria: a.category || a.categoryName || "",
+      status: a.status
+    }));
+
+    return res.status(200).json({
+      total: result.length,
+      rango: { desde: ayerInicio.toISOString(), hasta: hoyFin.toISOString() },
+      articulos: result
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
