@@ -802,6 +802,99 @@ def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
     draw_pie(c, W, M, PIE_H - 6*mm)
 
 
+# ── Variables globales para publicidades ──────────────────────────────────
+_publi_catalog = None   # lista de dicts cargada una vez
+_publi_mostrados = set()  # anunciantes ya mostrados en esta edicion
+
+def _cargar_catalogo_publi():
+    """Lee la carpeta publipdf/ y construye el catalogo de publicidades."""
+    global _publi_catalog
+    if _publi_catalog is not None:
+        return _publi_catalog
+    import os as _os, re as _re
+    _publi_dir = '/home/diarioin/scripts/publipdf'
+    _publi_catalog = []
+    if not _os.path.exists(_publi_dir):
+        return _publi_catalog
+    for fname in sorted(_os.listdir(_publi_dir)):
+        if not fname.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+            continue
+        # Naming: anunciante_Xcol_Ymm.ext  o  A-B_Xcol_Ymm.ext
+        m = _re.match(r'^(.+?)_([12])col_([0-9]+)mm\.', fname, _re.IGNORECASE)
+        if not m:
+            continue
+        anunciante_raw = m.group(1).lower()   # "gob", "muni-gob", "eco-tuayllu", "institucional"
+        cols = int(m.group(2))
+        alto_mm = int(m.group(3))
+        # Separar anunciantes combinados por "-" solo si hay mas de uno
+        # Regla: si contiene "-" Y ambas partes son palabras conocidas => combinado
+        # Simplificamos: un archivo con "-" en el anunciante = combinado
+        partes = anunciante_raw.replace('+', '-').split('-')
+        # Si solo hay una parte es un anunciante simple
+        anunciantes = partes if len(partes) > 1 else [anunciante_raw]
+        es_institucional = anunciante_raw.startswith('institucional')
+        _publi_catalog.append({
+            'fname':    fname,
+            'path':     _os.path.join(_publi_dir, fname),
+            'anunciantes': anunciantes,  # lista de nombres
+            'cols':     cols,
+            'alto_mm':  alto_mm,
+            'institucional': es_institucional,
+        })
+    return _publi_catalog
+
+def insertar_publicidad(c, y_fin_texto, pie_y, M, W, col_cw, x_col1, x_col2, num_pag):
+    """Inserta la mejor publicidad disponible en el espacio libre de la pagina."""
+    global _publi_mostrados
+    catalogo = _cargar_catalogo_publi()
+    if not catalogo:
+        return
+    espacio_mm = round((y_fin_texto - pie_y) / mm, 1)
+    if espacio_mm < 25:
+        return
+
+    # Separar pagos vs institucionales
+    pagos = [p for p in catalogo if not p['institucional']]
+    institucionales = [p for p in catalogo if p['institucional']]
+
+    # Anunciantes pagos que aun no aparecieron
+    pendientes = [p for p in pagos if any(a not in _publi_mostrados for a in p['anunciantes'])]
+
+    def elegir_mejor(lista, espacio):
+        """De una lista de publicidades, elegir la que mejor entre (max alto <= espacio)."""
+        candidatos = [p for p in lista if p['alto_mm'] <= espacio]
+        if not candidatos:
+            return None
+        return max(candidatos, key=lambda p: p['alto_mm'])
+
+    publi = elegir_mejor(pendientes, espacio_mm)
+    if publi is None:
+        # Todos los pagos ya aparecieron o no entran => usar institucional
+        publi = elegir_mejor(institucionales, espacio_mm)
+    if publi is None:
+        return
+
+    # Calcular posicion: centrado horizontalmente, justo debajo de y_fin_texto con 3mm de margen
+    alto_pts = publi['alto_mm'] * mm
+    ancho_pts = (W - 2*M) if publi['cols'] == 2 else col_cw
+    x_pos = M if publi['cols'] == 2 else x_col1
+    y_pos = y_fin_texto - 3*mm - alto_pts  # 3mm de separacion del texto
+
+    if y_pos < pie_y:
+        return  # no entra con el margen
+
+    # Dibujar imagen de publicidad
+    try:
+        from reportlab.lib.utils import ImageReader as _IR
+        _ir = _IR(publi['path'])
+        c.drawImage(_ir, x_pos, y_pos, width=ancho_pts, height=alto_pts, preserveAspectRatio=False, mask='auto')
+        print(f"  [PUBLI] pag={num_pag} archivo={publi['fname']} espacio={espacio_mm}mm y_pos={round(y_pos/mm,1)}mm")
+        # Registrar anunciantes como mostrados
+        for a in publi['anunciantes']:
+            _publi_mostrados.add(a)
+    except Exception as e:
+        print(f"  [PUBLI ERR] pag={num_pag} {publi['fname']}: {e}")
+
 def generar_pagina_interior(c, nota, num_pag):
     """Pagina interior v3.20 - Layout adaptativo:
        Layout A: ratio>=1.5 -> foto full-width 2col, titulo centrado debajo, cuerpo 2col
@@ -907,10 +1000,6 @@ def generar_pagina_interior(c, nota, num_pag):
         cuerpo_start = by - 4*mm
 
     # ── CUERPO: 2 columnas ───────────────────────────────────────────────────
-    # Espacio disponible para cuerpo (en mm)
-    _espacio_mm = round((cuerpo_start - CUERPO_Y) / mm, 1) if cuerpo_start > CUERPO_Y else 0
-    _espacio_total_mm = round((cuerpo_start - (PIE_Y + 6*mm)) / mm, 1) if cuerpo_start > PIE_Y else 0
-    print(f"  [ESPACIO-PAG{num_pag}] cuerpo_start={round(cuerpo_start/mm,1)}mm PIE_Y={round(PIE_Y/mm,1)}mm CUERPO_Y={round(CUERPO_Y/mm,1)}mm espacio_cuerpo={_espacio_mm}mm")
     if cuerpo and cuerpo_start > CUERPO_Y + 15*mm:
         col_cw  = COL2 - 4*mm
         x_col1  = M
@@ -922,7 +1011,8 @@ def generar_pagina_interior(c, nota, num_pag):
             col_cw, FUI_R, BODY_PTS, BODY_LH
         )
         _libre_mm = round((_y_fin_texto - PIE_Y) / mm, 1)
-        print(f"  [ESPACIO-PAG{num_pag}] desborde={desborde} y_fin_texto={round(_y_fin_texto/mm,1)}mm espacio_libre_hasta_pie={_libre_mm}mm")
+        if not desborde and _libre_mm >= 25:
+            insertar_publicidad(c, _y_fin_texto, PIE_Y, M, W, col_cw, x_col1, x_col2, num_pag)
         if desborde:
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
@@ -1134,15 +1224,6 @@ updateUI(1);
 def main():
     print("=== Diario Info PDF Generator v3.20 ===")
     print(f"Fecha: {FECHA_STR}")
-    # Listar carpeta de publicidades
-    import os as _os
-    _publi_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'publipdf')
-    if not _os.path.exists(_publi_dir):
-        _publi_dir = '/home/diarioin/scripts/publipdf'
-    print(f"  [PUBLI] carpeta: {_publi_dir} existe={_os.path.exists(_publi_dir)}")
-    if _os.path.exists(_publi_dir):
-        _archivos = sorted(_os.listdir(_publi_dir))
-        print(f"  [PUBLI] archivos: {_archivos}")
     # Diagnostico rutas
     import glob as _glob
     _homes = _glob.glob("/home/*/public_html/uploads") + _glob.glob("/home/*/uploads") + _glob.glob("/home/*/")
@@ -1182,6 +1263,9 @@ def main():
     cv.setTitle(f"Diario Info - Edicion Impresa {FECHA_STR}")
     cv.setAuthor("DiarioInfo.com.ar")
     
+    # Resetear publicidades mostradas para esta edicion
+    global _publi_mostrados
+    _publi_mostrados = set()
     print("Tapa...")
     generar_tapa(cv, notas, of, bl, clima)
     cv.showPage()
