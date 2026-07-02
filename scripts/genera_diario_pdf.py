@@ -1095,7 +1095,7 @@ def generar_flipbook(pdf_path, pdf_url, fecha_str, notas, paginas_desborde=None)
         else:
             links_js += ',\n  null'
     links_js += "\n];"
-    _html = ""
+    thumbs_html = ""
     for i, img in enumerate(paginas):
         thumbs_html += f'<div class="thumb" onclick="goPage({i+1})" title="Pagina {i+1}"><img src="{fecha_str}/{img}" loading="lazy"></div>\n'
 
