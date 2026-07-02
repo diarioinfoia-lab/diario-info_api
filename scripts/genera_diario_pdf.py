@@ -187,14 +187,14 @@ def obtener_notas(limite=15):
 
     cursor = db["articles"].find(
         {"status": "published", "publicationDate": {"$gte": ayer_inicio, "$lte": hoy_fin}}
-    ).sort([("publicationDate", -1), ("priority", -1)]).limit(limite)
+    ).sort([("publicationDate", -1)]).limit(limite * 3)
     notas = list(cursor)
 
     if len(notas) < limite:
         cinco_dias = ayer_inicio - timedelta(days=4)
         cursor2 = db["articles"].find(
             {"status": "published", "publicationDate": {"$gte": cinco_dias, "$lte": hoy_fin}}
-        ).sort([("publicationDate", -1), ("priority", -1)]).limit(limite)
+        ).sort([("publicationDate", -1)]).limit(limite * 3)
         notas = list(cursor2)
     
     result = []
@@ -219,6 +219,22 @@ def obtener_notas(limite=15):
             "date":     n.get("publicationDate", HOY),
             "url":      _url,
         })
+    # Reordenar igual que la home:
+    # 1. Dia calendario AR (UTC-3) DESC
+    # 2. Prioridad DESC dentro del mismo dia
+    # 3. publicationDate DESC como desempate
+    def _sort_key(r):
+        d = r["date"]
+        if hasattr(d, 'hour'):
+            ar = d - timedelta(hours=3)
+        else:
+            ar = d
+        dia = (ar.year, ar.month, ar.day) if hasattr(ar, 'year') else (0, 0, 0)
+        prio = r.get("priority", 0) or 0
+        ts = r["date"].timestamp() if hasattr(r["date"], 'timestamp') else 0
+        return (-dia[0], -dia[1], -dia[2], -prio, -ts)
+    result.sort(key=_sort_key)
+    result = result[:limite]
     print(f"Notas obtenidas: {len(result)}")
     for i, r in enumerate(result[:4]):
         print(f"  {i}: [{r['priority']}] [{r['category']}] {r['date'].strftime('%d/%m %H:%M') if hasattr(r['date'],'strftime') else str(r['date'])[:10]} - {r['title'][:40]}")
