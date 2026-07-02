@@ -1134,6 +1134,15 @@ updateUI(1);
 def main():
     print("=== Diario Info PDF Generator v3.20 ===")
     print(f"Fecha: {FECHA_STR}")
+    # Listar carpeta de publicidades
+    import os as _os
+    _publi_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'publipdf')
+    if not _os.path.exists(_publi_dir):
+        _publi_dir = '/home/diarioin/scripts/publipdf'
+    print(f"  [PUBLI] carpeta: {_publi_dir} existe={_os.path.exists(_publi_dir)}")
+    if _os.path.exists(_publi_dir):
+        _archivos = sorted(_os.listdir(_publi_dir))
+        print(f"  [PUBLI] archivos: {_archivos}")
     # Diagnostico rutas
     import glob as _glob
     _homes = _glob.glob("/home/*/public_html/uploads") + _glob.glob("/home/*/uploads") + _glob.glob("/home/*/")
