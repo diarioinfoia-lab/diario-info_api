@@ -6,4 +6,6 @@ const rewriteController = require("../controllers/rewrite.controller");
 // Body: { titulo, cuerpo, categoria, apiKey }
 router.post("/rewrite", rewriteController.rewrite);
 
+router.get("/articles-hoy", rewriteController.articulosHoy);
+
 module.exports = router;
