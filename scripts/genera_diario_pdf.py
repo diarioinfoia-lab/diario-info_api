@@ -1076,7 +1076,7 @@ def generar_flipbook(pdf_path, pdf_url, fecha_str, notas, paginas_desborde=None)
 
     # -- Construir links por pagina: pag 1=tapa, pag 2..N = notas[0..N-2] --
     # notas[0] es la nota principal (pag 2), notas[1] pag 3, etc.
-    links_js = "const PAGE_LINKS = [null"      links_js = "const PAGE_LINKS = [null"  # index 0 = tapa, sin link
+    links_js = "const PAGE_LINKS = [null"  # index 0 = tapa, sin link
     if paginas_desborde is None:
         paginas_desborde = set()
     for i, nota in enumerate(notas):
