@@ -155,8 +155,8 @@ def obtener_nombre_categoria(cat_id):
 
 def obtener_url_imagen(image_id, pub_date=None):
     """Construye URL de imagen desde MongoDB.
-    raw_url en DB tiene formato: /uploads/TIMESTAMP-filename.ext
-    URL final: http://www.diarioinfo.com/uploads/TIMESTAMP-filename.ext
+    raw_url en DB: /uploads/TIMESTAMP-filename.ext
+    URL servidor: http://www.diarioinfo.com/sistema/entidades/DD-MM-YYYY/filename.ext
     """
     if not image_id or db_global is None: return ""
     try:
@@ -164,14 +164,39 @@ def obtener_url_imagen(image_id, pub_date=None):
         if f:
             raw_url = f.get("fileUrl") or f.get("url") or f.get("filename") or ""
             if not raw_url: return ""
-            # Si raw_url es un path relativo (/uploads/...), construir URL completa
-            if raw_url.startswith('/'):
-                return "http://www.diarioinfo.com" + raw_url
-            # Si ya es URL completa, usarla directamente
-            if raw_url.startswith('http'):
-                return raw_url
-            # Fallback: asumir que es filename suelto en /uploads/
-            return "http://www.diarioinfo.com/uploads/" + raw_url
+            import re as _re
+            fname = raw_url.split('/')[-1]  # basename con timestamp: "TIMESTAMP-filename.ext"
+            # Quitar prefijo timestamp: "2026-06-25T01-53-23-153Z-"
+            fname = _re.sub(r'^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+Z-', '', fname)
+            # Fix mojibake: si MongoDB retorno bytes UTF-8 como Latin-1
+            try:
+                fname = fname.encode('latin-1').decode('utf-8')
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                pass
+            # Fecha de publicacion en formato dd-mm-yyyy
+            if pub_date:
+                from datetime import timezone as _tz
+                if hasattr(pub_date, 'tzinfo') and pub_date.tzinfo:
+                    ar_offset = timedelta(hours=-3)
+                    pub_ar = pub_date + ar_offset
+                else:
+                    pub_ar = pub_date - timedelta(hours=3)
+                fecha_str = pub_ar.strftime("%d-%m-%Y")
+            else:
+                fecha_str = HOY.strftime("%d-%m-%Y")
+            base_url = "http://www.diarioinfo.com/sistema/entidades/" + fecha_str + "/"
+            stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
+            ext = fname.rsplit('.', 1)[1].lower() if '.' in fname else 'jpg'
+            # URL encode el stem para manejar espacios y caracteres especiales
+            exts_to_try = [ext, 'avif', 'webp', 'jpg', 'jpeg', 'jfif', 'png']
+            seen = set()
+            for try_ext in exts_to_try:
+                if try_ext in seen: continue
+                seen.add(try_ext)
+                try_fname = urllib.parse.quote(stem + '.' + try_ext, safe='')
+                url = base_url + try_fname
+                print(f"  [url] Intentando: {url[:100]}")
+                return url  # retornamos la primera (la mas probable) y get_image_data probara las demas
     except Exception as e:
         print(f"  Error imagen {image_id}: {e}")
     return ""
