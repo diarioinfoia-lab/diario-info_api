@@ -162,6 +162,7 @@ def obtener_url_imagen(image_id, pub_date=None):
         f = db_global["files"].find_one({"_id": ObjectId(str(image_id))})
         if f:
             raw_url = f.get("fileUrl") or f.get("url") or f.get("filename") or ""
+            print(f"  [IMG-DEBUG] image_id={image_id} raw_url={raw_url[:120]}")
             if not raw_url: return ""
             # Extraer filename: "2026-06-25T01-53-23-153Z-PVPQ7T....jpg" -> "PVPQ7T....jpg"
             # El patron es: [timestamp]-[filename] donde timestamp = YYYY-MM-DDTHH-MM-SS-mmmZ
