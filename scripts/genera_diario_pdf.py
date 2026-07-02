@@ -940,11 +940,10 @@ def generar_pagina_interior(c, nota, num_pag):
             _mira_x   = x_col2 + col_cw - _mira_w
             _mira_y   = PIE_Y + 2*mm
             c.drawString(_mira_x, _mira_y, _mira_txt)
-            c.linkAnnotation(
-                "rect",
-                Rect=(_mira_x, _mira_y - 2, _mira_x + _mira_w, _mira_y + 8),
-                Contents=_nota_url,
-                A={"S": "URI", "URI": _nota_url}
+            c.linkRect(
+                url=_nota_url,
+                rect=(_mira_x, _mira_y - 2, _mira_x + _mira_w, _mira_y + 8),
+                relative=0
             )
 
     # Pie
