@@ -89,28 +89,54 @@ exports.articulosHoy = async (req, res) => {
     if (!db) return res.status(500).json({ error: "No hay conexion a MongoDB" });
 
     const now = new Date();
-    // Rango: ayer 21:00 UTC (= hoy 00:00 AR, UTC-3) hasta hoy 23:59:59 UTC
     const hoyFin = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59));
     const ayerInicio = new Date(hoyFin);
     ayerInicio.setUTCDate(ayerInicio.getUTCDate() - 1);
     ayerInicio.setUTCHours(0, 0, 0, 0);
 
-    const articles = await db.collection("articles").find(
+    // Intento 1: published + publicationDate
+    let articles = await db.collection("articles").find(
       { status: "published", publicationDate: { $gte: ayerInicio, $lte: hoyFin } }
     ).sort({ publicationDate: -1, priority: -1 }).limit(15).toArray();
+
+    let source = "publicationDate";
+
+    // Intento 2: published + updatedAt
+    if (articles.length === 0) {
+      articles = await db.collection("articles").find(
+        { status: "published", updatedAt: { $gte: ayerInicio, $lte: hoyFin } }
+      ).sort({ updatedAt: -1 }).limit(15).toArray();
+      source = "updatedAt";
+    }
+
+    // Diagnostico: ver los 5 mas recientes de cualquier status
+    const anyRecent = await db.collection("articles").find({})
+      .sort({ updatedAt: -1 }).limit(5).toArray();
+
+    const sampleKeys = anyRecent.length > 0 ? Object.keys(anyRecent[0]).join(", ") : "no docs";
 
     const result = articles.map((a, i) => ({
       n: i + 1,
       titulo: a.title || a.titulo || "(sin titulo)",
-      fecha: a.publicationDate ? new Date(a.publicationDate).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "sin fecha",
-      categoria: a.category || a.categoryName || "",
+      publicationDate: a.publicationDate ? new Date(a.publicationDate).toISOString() : null,
+      updatedAt: a.updatedAt ? new Date(a.updatedAt).toISOString() : null,
       status: a.status
+    }));
+
+    const recentAny = anyRecent.map(a => ({
+      titulo: (a.title || a.titulo || "").substring(0, 60),
+      status: a.status,
+      publicationDate: a.publicationDate ? new Date(a.publicationDate).toISOString() : null,
+      updatedAt: a.updatedAt ? new Date(a.updatedAt).toISOString() : null
     }));
 
     return res.status(200).json({
       total: result.length,
+      source: source,
       rango: { desde: ayerInicio.toISOString(), hasta: hoyFin.toISOString() },
-      articulos: result
+      articulos: result,
+      schemaKeys: sampleKeys,
+      ultimos5Cualquier: recentAny
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
