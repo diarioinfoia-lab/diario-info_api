@@ -872,6 +872,9 @@ def insertar_publicidad(c, y_fin_texto, pie_y, M, W, col_cw, x_col1, x_col2, num
         # Todos los pagos ya aparecieron o no entran => usar institucional
         publi = elegir_mejor(institucionales, espacio_mm)
     if publi is None:
+        # Sin institucionales => repetir cualquier anunciante pago que entre
+        publi = elegir_mejor(pagos, espacio_mm)
+    if publi is None:
         return
 
     # Calcular posicion: centrado horizontalmente, justo debajo de y_fin_texto con 3mm de margen
