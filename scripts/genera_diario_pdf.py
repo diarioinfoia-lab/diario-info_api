@@ -1045,7 +1045,7 @@ def generar_pagina_interior(c, nota, num_pag):
 
 def generar_flipbook(pdf_path, pdf_url, fecha_str, notas, paginas_desborde=None):
     """Genera flipbook con efecto de pasar paginas usando StPageFlip + imagenes del PDF."""
-        import shutil
+    import shutil
     titulo = f"Diario Info - Edicion {fecha_str}"
     flip_dir = os.path.join(DIR_FLIPBOOK, fecha_str)
     os.makedirs(flip_dir, exist_ok=True)
