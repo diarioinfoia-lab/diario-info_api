@@ -603,6 +603,7 @@ def draw_cuerpo_2col(c, cuerpo, x_l1, x_l2, y_start, y_end, col_w, font_body, pt
     c.setLineWidth(0.5)
     c.line((x_l1 + col_w + x_l2) / 2, y_start, (x_l1 + col_w + x_l2) / 2, y_end)
     desborde = False
+    min_cy = y_start  # rastrea hasta donde llego el texto
     for col_i, col_lines in enumerate([(col1, x_l1), (col2, x_l2)]):
         lineas, cx = col_lines
         cy = y_start
@@ -616,7 +617,8 @@ def draw_cuerpo_2col(c, cuerpo, x_l1, x_l2, y_start, y_end, col_w, font_body, pt
             if es_parr: cy -= lh_body * 0.4  # espacio entre parrafos
             c.drawString(cx + dx, cy, ln)
             cy -= lh_body
-    return desborde
+            if cy < min_cy: min_cy = cy
+    return desborde, min_cy
 
 
 def generar_tapa(c, notas, cotiz_of, cotiz_bl, clima):
@@ -913,13 +915,14 @@ def generar_pagina_interior(c, nota, num_pag):
         col_cw  = COL2 - 4*mm
         x_col1  = M
         x_col2  = M + COL2 + 4*mm
-        desborde = draw_cuerpo_2col(
+        desborde, _y_fin_texto = draw_cuerpo_2col(
             c, cuerpo,
             x_col1, x_col2,
             cuerpo_start, CUERPO_Y,
             col_cw, FUI_R, BODY_PTS, BODY_LH
         )
-        print(f"  [ESPACIO-PAG{num_pag}] desborde={desborde} => espacio_libre_sobre_pie={round((CUERPO_Y - PIE_Y)/mm,1)}mm")
+        _libre_mm = round((_y_fin_texto - CUERPO_Y) / mm, 1) if not desborde else 0
+        print(f"  [ESPACIO-PAG{num_pag}] desborde={desborde} y_fin_texto={round(_y_fin_texto/mm,1)}mm espacio_libre={round((CUERPO_Y - PIE_Y)/mm,1)}mm")
         if desborde:
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
