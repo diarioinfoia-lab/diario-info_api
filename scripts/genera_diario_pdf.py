@@ -905,6 +905,10 @@ def generar_pagina_interior(c, nota, num_pag):
         cuerpo_start = by - 4*mm
 
     # ── CUERPO: 2 columnas ───────────────────────────────────────────────────
+    # Espacio disponible para cuerpo (en mm)
+    _espacio_mm = round((cuerpo_start - CUERPO_Y) / mm, 1) if cuerpo_start > CUERPO_Y else 0
+    _espacio_total_mm = round((cuerpo_start - (PIE_Y + 6*mm)) / mm, 1) if cuerpo_start > PIE_Y else 0
+    print(f"  [ESPACIO-PAG{num_pag}] cuerpo_start={round(cuerpo_start/mm,1)}mm PIE_Y={round(PIE_Y/mm,1)}mm CUERPO_Y={round(CUERPO_Y/mm,1)}mm espacio_cuerpo={_espacio_mm}mm")
     if cuerpo and cuerpo_start > CUERPO_Y + 15*mm:
         col_cw  = COL2 - 4*mm
         x_col1  = M
@@ -915,6 +919,7 @@ def generar_pagina_interior(c, nota, num_pag):
             cuerpo_start, CUERPO_Y,
             col_cw, FUI_R, BODY_PTS, BODY_LH
         )
+        print(f"  [ESPACIO-PAG{num_pag}] desborde={desborde} => espacio_libre_sobre_pie={round((CUERPO_Y - PIE_Y)/mm,1)}mm")
         if desborde:
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
