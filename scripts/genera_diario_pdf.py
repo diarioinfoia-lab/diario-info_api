@@ -1019,8 +1019,15 @@ def generar_pagina_interior(c, nota, num_pag):
         if desborde:
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
-            _nota_url = nota.get("url", "https://diarioinfo.com")
-            print(f"  [URL-DIAG] url_raw={_nota_url}")
+            _nota_url_raw = nota.get("url", "")
+            # Corregir URL: MongoDB guarda /nota/SLUG, el real es /articles/SLUG
+            _slug_m = re.search(r'/(?:nota|articles)/(.+)$', _nota_url_raw)
+            if _slug_m:
+                _nota_url = "https://diarioinfo.com/articles/" + _slug_m.group(1)
+            elif _nota_url_raw:
+                _nota_url = _nota_url_raw
+            else:
+                _nota_url = "https://diarioinfo.com"
             _mira_txt = ">> Mira la NOTA completa en nuestro Portal: diarioinfo.com"
             _mira_w   = c.stringWidth(_mira_txt, FUI_R, 8)
             _mira_x   = x_col2 + col_cw - _mira_w
