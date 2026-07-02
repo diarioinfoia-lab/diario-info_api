@@ -155,49 +155,23 @@ def obtener_nombre_categoria(cat_id):
 
 def obtener_url_imagen(image_id, pub_date=None):
     """Construye URL de imagen desde MongoDB.
-    URL correcta: http://www.diarioinfo.com/sistema/entidades/[dd-mm-yyyy]/[filename]
+    raw_url en DB tiene formato: /uploads/TIMESTAMP-filename.ext
+    URL final: http://www.diarioinfo.com/uploads/TIMESTAMP-filename.ext
     """
     if not image_id or db_global is None: return ""
     try:
         f = db_global["files"].find_one({"_id": ObjectId(str(image_id))})
         if f:
             raw_url = f.get("fileUrl") or f.get("url") or f.get("filename") or ""
-            print(f"  [IMG-DEBUG] image_id={image_id} raw_url={raw_url[:120]}")
             if not raw_url: return ""
-            # Extraer filename: "2026-06-25T01-53-23-153Z-PVPQ7T....jpg" -> "PVPQ7T....jpg"
-            # El patron es: [timestamp]-[filename] donde timestamp = YYYY-MM-DDTHH-MM-SS-mmmZ
-            import re as _re
-            fname = raw_url.split('/')[-1]  # basename
-            # Quitar prefijo timestamp: "2026-06-25T01-53-23-153Z-"
-            fname = _re.sub(r'^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+Z-', '', fname)
-            # Fecha de publicacion en formato dd-mm-yyyy
-            if pub_date:
-                # Ajustar a zona horaria AR (UTC-3): si pub_date tiene hora < 3, usar dia anterior
-                from datetime import timedelta as _td2
-                _adj = pub_date - _td2(hours=3)
-                fecha_str = _adj.strftime("%d-%m-%Y")
-            else:
-                # Default: usar ayer (imagenes subidas en UTC, diario en UTC-3)
-                from datetime import timedelta as _td3
-                fecha_str = (HOY - _td3(days=1)).strftime("%d-%m-%Y")
-            base_url = "http://www.diarioinfo.com/sistema/entidades/" + fecha_str + "/"
-            # Probar diferentes extensiones
-            # Fix mojibake: si MongoDB retorno bytes UTF-8 como Latin-1
-            try:
-                fname = fname.encode('latin-1').decode('utf-8')
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                pass
-            stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
-            ext = fname.rsplit('.', 1)[1].lower() if '.' in fname else 'jpg'
-            exts_to_try = [ext, 'avif', 'webp', 'jpg', 'jpeg', 'jfif', 'png']
-            seen = set()
-            for try_ext in exts_to_try:
-                if try_ext in seen: continue
-                seen.add(try_ext)
-                try_fname = urllib.parse.quote(stem + '.' + try_ext, safe='')
-                url = base_url + try_fname
-                print(f"  [url] Intentando: {url[:100]}")
-                return url  # retornamos la primera (la mas probable) y get_image_data probara las demas
+            # Si raw_url es un path relativo (/uploads/...), construir URL completa
+            if raw_url.startswith('/'):
+                return "http://www.diarioinfo.com" + raw_url
+            # Si ya es URL completa, usarla directamente
+            if raw_url.startswith('http'):
+                return raw_url
+            # Fallback: asumir que es filename suelto en /uploads/
+            return "http://www.diarioinfo.com/uploads/" + raw_url
     except Exception as e:
         print(f"  Error imagen {image_id}: {e}")
     return ""
