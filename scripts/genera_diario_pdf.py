@@ -1040,6 +1040,7 @@ def generar_pagina_interior(c, nota, num_pag):
 
     # Pie
     draw_pie(c, W, M, PIE_Y - 4*mm)
+    print(f"  [DESBORDE] pag={num_pag} desborde={desborde}")
     return desborde
 
 
@@ -1301,6 +1302,7 @@ def main():
             paginas_desborde.add(i)
         cv.showPage()
 
+    print(f"  [MAIN] paginas_desborde={paginas_desborde}")
     cv.save()
     tam = os.path.getsize(PDF_PATH)
     print(f"PDF OK! {tam/1024:.1f} KB")
