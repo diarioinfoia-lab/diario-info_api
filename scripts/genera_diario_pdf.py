@@ -1180,7 +1180,10 @@ function updateUI(page) {{
   const thumb = document.querySelectorAll('.thumb')[page - 1];
   if (thumb) thumb.scrollIntoView({{behavior:'smooth', block:'nearest'}});
   const link = document.getElementById('nota-link');
-  const info = PAGE_LINKS[page - 1];
+  const infoL = PAGE_LINKS[page - 1];
+  const infoR = PAGE_LINKS[page];
+  const info = infoL || infoR;
+  const isRight = !infoL && !!infoR;
   if (info && info.url) {{
     link.href = info.url;
     link.innerHTML = '&#128279; Mira la NOTA completa &rarr; diarioinfo.com';
@@ -1188,7 +1191,7 @@ function updateUI(page) {{
     if (book) {{
       const rect = book.getBoundingClientRect();
       const pageW = rect.width / 2;
-      const linkLeft = rect.left + pageW * 0.35;
+      const linkLeft = rect.left + pageW * (isRight ? 1.35 : 0.35);
       const linkBottom = window.innerHeight - rect.bottom + 22;
       link.style.left = linkLeft + 'px';
       link.style.bottom = linkBottom + 'px';
