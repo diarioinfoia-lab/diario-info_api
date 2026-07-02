@@ -1011,13 +1011,8 @@ def generar_pagina_interior(c, nota, num_pag):
             col_cw, FUI_R, BODY_PTS, BODY_LH
         )
         _libre_mm = round((_y_fin_texto - PIE_Y) / mm, 1)
-        print(f"  [ESPACIO-PAG] pag={num_pag} espacio={_libre_mm}mm desborde={desborde}")
         if not desborde and _libre_mm >= 25:
             insertar_publicidad(c, _y_fin_texto, PIE_Y, M, W, col_cw, x_col1, x_col2, num_pag)
-        elif not desborde:
-            print(f"  [ESPACIO-PAG] pag={num_pag} no inserta: espacio {_libre_mm}mm < 25mm")
-        elif desborde:
-            print(f"  [ESPACIO-PAG] pag={num_pag} no inserta: hay desborde (nota larga)")
         if desborde:
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
