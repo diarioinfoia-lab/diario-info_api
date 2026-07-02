@@ -156,7 +156,7 @@ def obtener_nombre_categoria(cat_id):
 def obtener_url_imagen(image_id, pub_date=None):
     """Construye URL de imagen desde MongoDB.
     raw_url en DB: /uploads/TIMESTAMP-filename.ext
-    URL servidor: http://www.diarioinfo.com/sistema/entidades/DD-MM-YYYY/filename.ext
+    URL real: https://api.diarioinfo.com/uploads/TIMESTAMP-filename.ext
     """
     if not image_id or db_global is None: return ""
     try:
@@ -164,39 +164,16 @@ def obtener_url_imagen(image_id, pub_date=None):
         if f:
             raw_url = f.get("fileUrl") or f.get("url") or f.get("filename") or ""
             if not raw_url: return ""
-            import re as _re
-            fname = raw_url.split('/')[-1]  # basename con timestamp: "TIMESTAMP-filename.ext"
-            # Quitar prefijo timestamp: "2026-06-25T01-53-23-153Z-"
-            fname = _re.sub(r'^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+Z-', '', fname)
-            # Fix mojibake: si MongoDB retorno bytes UTF-8 como Latin-1
-            try:
-                fname = fname.encode('latin-1').decode('utf-8')
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                pass
-            # Fecha de publicacion en formato dd-mm-yyyy
-            if pub_date:
-                from datetime import timezone as _tz
-                if hasattr(pub_date, 'tzinfo') and pub_date.tzinfo:
-                    ar_offset = timedelta(hours=-3)
-                    pub_ar = pub_date + ar_offset
-                else:
-                    pub_ar = pub_date - timedelta(hours=3)
-                fecha_str = pub_ar.strftime("%d-%m-%Y")
-            else:
-                fecha_str = HOY.strftime("%d-%m-%Y")
-            base_url = "http://www.diarioinfo.com/sistema/entidades/" + fecha_str + "/"
-            stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
-            ext = fname.rsplit('.', 1)[1].lower() if '.' in fname else 'jpg'
-            # URL encode el stem para manejar espacios y caracteres especiales
-            exts_to_try = [ext, 'avif', 'webp', 'jpg', 'jpeg', 'jfif', 'png']
-            seen = set()
-            for try_ext in exts_to_try:
-                if try_ext in seen: continue
-                seen.add(try_ext)
-                try_fname = urllib.parse.quote(stem + '.' + try_ext, safe='')
-                url = base_url + try_fname
-                print(f"  [url] Intentando: {url[:100]}")
-                return url  # retornamos la primera (la mas probable) y get_image_data probara las demas
+            # raw_url es: /uploads/2026-07-01T23-12-04-699Z-belgica.jpg
+            # URL real: https://api.diarioinfo.com/uploads/2026-07-01T23-12-04-699Z-belgica.jpg
+            if raw_url.startswith('/uploads/'):
+                # URL encode para nombres con espacios
+                encoded = urllib.parse.quote(raw_url, safe='/:')
+                return "https://api.diarioinfo.com" + encoded
+            if raw_url.startswith('http'):
+                return raw_url
+            # Fallback: asumir que es solo el filename
+            return "https://api.diarioinfo.com/uploads/" + urllib.parse.quote(raw_url, safe='')
     except Exception as e:
         print(f"  Error imagen {image_id}: {e}")
     return ""
@@ -301,16 +278,7 @@ def draw_text_center(c, texto, cx, y, ancho, fuente, pts, color, max_lineas=99, 
 def get_image_data(url):
     """Descarga imagen y retorna (ImageReader, width_px, height_px) o (None,0,0)"""
     if not url: return None, 0, 0
-    # Si URL tiene ia.diarioinfo.com, convertir al sistema correcto
     url = str(url)
-    if 'ia.diarioinfo.com/uploads/' in url:
-        # Construir URL alternativa con sistema/entidades
-        import re as _re
-        fname = url.split('/uploads/')[-1]
-        fname = _re.sub(r'^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+Z-', '', fname)
-        fecha_str = HOY.strftime("%d-%m-%Y")
-        url = "http://www.diarioinfo.com/sistema/entidades/" + fecha_str + "/" + urllib.parse.quote(fname, safe='')
-        print(f"  [img] URL convertida a: {url[:100]}")
     # Lista de URLs a intentar (con variantes de extension)
     urls_to_try = [url]
     if '.' in url.split('/')[-1]:
