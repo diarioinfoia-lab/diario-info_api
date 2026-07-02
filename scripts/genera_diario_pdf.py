@@ -1040,10 +1040,10 @@ def generar_pagina_interior(c, nota, num_pag):
 
     # Pie
     draw_pie(c, W, M, PIE_Y - 4*mm)
+    return desborde
 
 
-def generar_flipbook(pdf_path, pdf_url, fecha_str, notas):
-    """Genera flipbook con efecto de pasar paginas usando StPageFlip + imagenes del PDF."""
+def generar_flipbookdef generar_flipbook(pdf_path, pdf_url, fecha_str, notas, paginas_desborde=None):ook con efecto de pasar paginas usando StPageFlip + imagenes del PDF."""
     import shutil
     titulo = f"Diario Info - Edicion {fecha_str}"
     flip_dir = os.path.join(DIR_FLIPBOOK, fecha_str)
@@ -1075,15 +1075,25 @@ def generar_flipbook(pdf_path, pdf_url, fecha_str, notas):
 
     # -- Construir links por pagina: pag 1=tapa, pag 2..N = notas[0..N-2] --
     # notas[0] es la nota principal (pag 2), notas[1] pag 3, etc.
-    links_js = "const PAGE_LINKS = [null"  # index 0 = tapa, sin link
+    links_js = "const PAGE_LINKS = [null"      links_js = "const PAGE_LINKS = [null"  # index 0 = tapa, sin link
+    if paginas_desborde is None:
+        paginas_desborde = set()
     for i, nota in enumerate(notas):
-        url  = nota.get("url", "")
-        titl = nota.get("title", "").replace('"', '').replace("'", "")[:60]
-        links_js += f',\n  {{url: "{url}", title: "{titl}"}}'
-    links_js += "\n];"
-
-    # -- Thumbnails lateral --
-    thumbs_html = ""
+        pag_num = i + 2  # pagina 2 = nota[0], pagina 3 = nota[1], etc.
+        if pag_num in paginas_desborde:
+            _url_raw = nota.get("url", "")
+            _slug_m = re.search(r'/(?:nota|articles)/(.+)$', _url_raw)
+            if _slug_m:
+                _url_ok = "https://diarioinfo.com/articles/" + _slug_m.group(1)
+            elif _url_raw:
+                _url_ok = _url_raw
+            else:
+                _url_ok = "https://diarioinfo.com"
+            titl = nota.get("title", "").replace('"', '').replace("'", "")[:60]
+            links_js += f',\n  {{url: "{_url_ok}", title: "{titl}"}}'
+        else:
+            links_js += ',\n  null'
+    links_js += "\n];"_html = ""
     for i, img in enumerate(paginas):
         thumbs_html += f'<div class="thumb" onclick="goPage({i+1})" title="Pagina {i+1}"><img src="{fecha_str}/{img}" loading="lazy"></div>\n'
 
@@ -1281,22 +1291,21 @@ def main():
     generar_tapa(cv, notas, of, bl, clima)
     cv.showPage()
     
+    paginas_desborde = set()  # paginas con texto cortado
     for i, nota in enumerate([notas[0]] + notas[1:], start=2):
         print(f"Pagina {i}: {nota['title'][:45]}...")
         generar_pagina_interior(cv, nota, i)
-        cv.showPage()
-    
-    cv.save()
-    tam = os.path.getsize(PDF_PATH)
-    print(f"PDF OK! {tam/1024:.1f} KB")
+        cv.s        _desb = generar_pagina_interior(cv, nota, i)
+        if _desb:
+            paginas_desborde.add(i)
+        cv.showPage()   print(f"PDF OK! {tam/1024:.1f} KB")
     
     print("Flipbook...")
     pdf_url = f"https://diarioinfo.com/revistas/diarioinfo/{FECHA_STR}.pdf"
     generar_flipbook(PDF_PATH, pdf_url, FECHA_STR, notas)
     
     print(f"\n=== COMPLETADO ===")
-    print(f"PDF:      {PDF_PATH}")
-    print(f"Acceso:   https://diarioinfo.com/flipbook/{FECHA_STR}.html")
+    print(f"PDF:      {PDgenerar_flipbook(PDF_PATH, pdf_url, FECHA_STR, notas, paginas_desborde)m/flipbook/{FECHA_STR}.html")
 
 if __name__ == "__main__":
     main()
