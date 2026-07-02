@@ -1020,6 +1020,7 @@ def generar_pagina_interior(c, nota, num_pag):
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
             _nota_url = nota.get("url", "https://diarioinfo.com")
+            print(f"  [URL-DIAG] url_raw={_nota_url}")
             _mira_txt = ">> Mira la NOTA completa en nuestro Portal: diarioinfo.com"
             _mira_w   = c.stringWidth(_mira_txt, FUI_R, 8)
             _mira_x   = x_col2 + col_cw - _mira_w
