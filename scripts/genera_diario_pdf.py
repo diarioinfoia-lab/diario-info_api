@@ -1307,10 +1307,11 @@ def main():
     
     print("Flipbook...")
     pdf_url = f"https://diarioinfo.com/revistas/diarioinfo/{FECHA_STR}.pdf"
-    generar_flipbook(PDF_PATH, pdf_url, FECHA_STR, notas)
-    
+    generar_flipbook(PDF_PATH, pdf_url, FECHA_STR, notas, paginas_desborde)
+
     print(f"\n=== COMPLETADO ===")
-    print(f"PDF:      {PDgenerar_flipbook(PDF_PATH, pdf_url, FECHA_STR, notas, paginas_desborde)m/flipbook/{FECHA_STR}.html")
+    print(f"PDF:      {PDF_PATH}")
+    print(f"Acceso:   https://diarioinfo.com/flipbook/{FECHA_STR}.html")
 
 if __name__ == "__main__":
     main()
