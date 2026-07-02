@@ -1292,15 +1292,18 @@ def main():
     print("Tapa...")
     generar_tapa(cv, notas, of, bl, clima)
     cv.showPage()
-    
+
     paginas_desborde = set()  # paginas con texto cortado
     for i, nota in enumerate([notas[0]] + notas[1:], start=2):
         print(f"Pagina {i}: {nota['title'][:45]}...")
-        generar_pagina_interior(cv, nota, i)
-        cv.s        _desb = generar_pagina_interior(cv, nota, i)
+        _desb = generar_pagina_interior(cv, nota, i)
         if _desb:
             paginas_desborde.add(i)
-        cv.showPage()   print(f"PDF OK! {tam/1024:.1f} KB")
+        cv.showPage()
+
+    cv.save()
+    tam = os.path.getsize(PDF_PATH)
+    print(f"PDF OK! {tam/1024:.1f} KB")
     
     print("Flipbook...")
     pdf_url = f"https://diarioinfo.com/revistas/diarioinfo/{FECHA_STR}.pdf"
