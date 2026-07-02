@@ -921,8 +921,8 @@ def generar_pagina_interior(c, nota, num_pag):
             cuerpo_start, CUERPO_Y,
             col_cw, FUI_R, BODY_PTS, BODY_LH
         )
-        _libre_mm = round((_y_fin_texto - CUERPO_Y) / mm, 1) if not desborde else 0
-        print(f"  [ESPACIO-PAG{num_pag}] desborde={desborde} y_fin_texto={round(_y_fin_texto/mm,1)}mm espacio_libre={round((CUERPO_Y - PIE_Y)/mm,1)}mm")
+        _libre_mm = round((_y_fin_texto - PIE_Y) / mm, 1)
+        print(f"  [ESPACIO-PAG{num_pag}] desborde={desborde} y_fin_texto={round(_y_fin_texto/mm,1)}mm espacio_libre_hasta_pie={_libre_mm}mm")
         if desborde:
             c.setFont(FUI_R, 8)
             c.setFillColorRGB(*AZUL_INST)
