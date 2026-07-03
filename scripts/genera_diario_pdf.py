@@ -1145,12 +1145,10 @@ footer {{ background: #003366; width: 100%; text-align: center; padding: 8px; co
   <div class="header-date">{titulo}</div>
   <div class="header-links">
     <a href="../revistas/diarioinfo/{fecha_str}.pdf" download>&#8595; PDF</a>
-    <a href="index.html">Ediciones</a>
+    <a href="ediciones.php">Ediciones</a>
   </div>
 </header>
 <div class="main-wrap">
-  <div class="thumbs" id="thumbs">
-{thumbs_html}  </div>
   <div class="flip-area">
     <div id="book-container">
 {pages_html}    </div>
