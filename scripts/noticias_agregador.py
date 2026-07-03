@@ -40,7 +40,7 @@ MONGO_FILES_COL  = "files"
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VERCEL_REWRITE_URL = "https://diario-info-api.vercel.app/rewrite"
 
-HORAS_MAX        = 2   # Solo noticias de las ultimas N horas
+HORAS_MAX        = 1.5   # Solo noticias de las ultimas N horas
 
 FUENTES = [
     # ── SDE: El Liberal ──────────────────────────────────────────────────────────
@@ -308,8 +308,11 @@ AUTHOR_CATEGORY_LABELS = {
     "economia":     "Economía"
 }
 
-def generar_autor_codificado(categoria_id, es_sde=False):
-    """Genera el texto codificado del autor: Red-info SDE-Policiales / NAC-Deportes etc."""
+def generar_autor_codificado(categoria_id, es_sde=False, paso_por_ia=True):
+    """Genera el texto codificado del autor: Red-info SDE-Policiales / NAC-Deportes etc.
+    Si la nota NO paso por la IA (fallback), se devuelve solo 'Red-info' como alarma visual."""
+    if not paso_por_ia:
+        return "Red-info"
     prefijo = "SDE" if es_sde else "NAC"
     etiqueta = AUTHOR_CATEGORY_LABELS.get(categoria_id, categoria_id.capitalize())
     return "Red-info " + prefijo + "-" + etiqueta
@@ -668,7 +671,7 @@ def conectar_mongo():
         return None, None
 
 
-def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_original, imagen_url, credito_imagen, es_sde=False):
+def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_original, imagen_url, credito_imagen, es_sde=False, paso_por_ia=True):
     """Inserta un articulo en MongoDB como DRAFT con imagen y slug."""
     try:
         fecha_ahora = datetime.now(timezone.utc)
@@ -706,7 +709,7 @@ def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_orig
             "articleType": "nota",
             "sourceUrl": url_original,
             "slug": slug,
-            "author": generar_autor_codificado(fuente_categoria, es_sde),
+            "author": generar_autor_codificado(fuente_categoria, es_sde, paso_por_ia),
             "authorColor": AUTHOR_COLORS.get(fuente_categoria, "#555555"),
             "authorPrefixColor": AUTHOR_PREFIX_COLOR_SDE if es_sde else AUTHOR_PREFIX_COLOR_NACIONAL,
             "createdBy": "agregador-automatico",
@@ -793,6 +796,7 @@ def main():
 
             # Reescribir con Gemini (con fallback)
             nota_reescrita = reescribir_con_claude(articulo, fuente['categoria'])
+            paso_por_ia = nota_reescrita is not None
             if not nota_reescrita:
                 logger.warning(f"Claude API no disponible, usando contenido original")
                 nota_reescrita = {
@@ -801,13 +805,16 @@ def main():
                     "cuerpo": articulo['cuerpo']
                 }
 
-            # Deduplicacion: saltar si titulo similar ya fue publicado esta ejecucion
-            titulo_candidato = nota_reescrita.get('titulo', articulo.get('titulo', ''))
-            if fuente.get('es_sde', False):
-                if any(titulos_similares(titulo_candidato, t) for t in titulos_esta_ejecucion):
-                    logger.info(f"  [SKIP-DEDUP] Titulo similar ya existe: {titulo_candidato[:60]}")
-                    guardar_url_procesada(url, urls_procesadas)
-                    continue
+            # Deduplicacion: comparamos el TITULO ORIGINAL scrapeado (antes de la IA), ya que
+            # la reescritura cambia intencionalmente la redaccion, y dos notas del mismo hecho
+            # pueden terminar con titulos muy distintos despues de pasar por la IA.
+            # Se aplica a TODAS las fuentes (no solo interior/es_sde).
+            titulo_original = articulo.get('titulo', '')
+            titulo_candidato = nota_reescrita.get('titulo', titulo_original)
+            if any(titulos_similares(titulo_original, t) for t in titulos_esta_ejecucion):
+                logger.info(f"  [SKIP-DEDUP] Titulo similar ya existe: {titulo_original[:60]}")
+                guardar_url_procesada(url, urls_procesadas)
+                continue
 
             # Publicar en MongoDB
             categoria_id = CATEGORIAS[fuente['categoria']]
@@ -819,10 +826,11 @@ def main():
                 url,
                 articulo.get('imagen_url'),
                 articulo.get('credito_imagen', fuente.get('credito', '')),
-                es_sde=fuente.get('es_sde', False)
+                es_sde=fuente.get('es_sde', False),
+                paso_por_ia=paso_por_ia
             ):
                 guardar_url_procesada(url, urls_procesadas)
-                titulos_esta_ejecucion.append(titulo_candidato)
+                titulos_esta_ejecucion.append(titulo_original)
                 publicados_fuente += 1
                 total_publicados += 1
 
