@@ -1162,6 +1162,7 @@ footer {{ background: #003366; width: 100%; text-align: center; padding: 8px; co
   </div>
 </div>
 <a class="nota-link" id="nota-link" href="#" target="_blank" rel="noopener">&#128196; Leer nota completa</a>
+<a class="nota-link" id="nota-link-r" href="#" target="_blank" rel="noopener">&#128279; Leer nota completa</a>
 <footer>www.diarioinfo.com.ar &nbsp;|&nbsp; Edicion Impresa {fecha_str}</footer>
 <script>
 {links_js}
@@ -1179,27 +1180,40 @@ function updateUI(page) {{
   // Scroll thumb into view
   const thumb = document.querySelectorAll('.thumb')[page - 1];
   if (thumb) thumb.scrollIntoView({{behavior:'smooth', block:'nearest'}});
-  const link = document.getElementById('nota-link');
+  const linkL = document.getElementById('nota-link');
+  const linkR = document.getElementById('nota-link-r');
   const infoL = PAGE_LINKS[page - 1];
   const infoR = PAGE_LINKS[page];
-  const info = infoL || infoR;
-  const isRight = !infoL && !!infoR;
-  if (info && info.url) {{
-    link.href = info.url;
-    link.innerHTML = '&#128279; Mira la NOTA completa &rarr; diarioinfo.com';
-    const book = document.getElementById('book-container');
+  const book = document.getElementById('book-container');
+  // Boton izquierdo
+  if (infoL && infoL.url) {{
+    linkL.href = infoL.url;
+    linkL.innerHTML = '&#128279; Mira la NOTA completa &rarr; diarioinfo.com';
     if (book) {{
-      const rect = book.getBoundingClientRect();
-      const pageW = rect.width / 2;
-      const linkLeft = rect.left + pageW * (isRight ? 1.35 : 0.35);
-      const linkBottom = window.innerHeight - rect.bottom + 22;
-      link.style.left = linkLeft + 'px';
-      link.style.bottom = linkBottom + 'px';
-      link.style.right = 'auto';
+      const rectL = book.getBoundingClientRect();
+      const pageWL = rectL.width / 2;
+      linkL.style.left = (rectL.left + pageWL * 0.35) + 'px';
+      linkL.style.bottom = (window.innerHeight - rectL.bottom + 22) + 'px';
+      linkL.style.right = 'auto';
     }}
-    link.style.display = 'block';
+    linkL.style.display = 'block';
   }} else {{
-    link.style.display = 'none';
+    linkL.style.display = 'none';
+  }}
+  // Boton derecho
+  if (infoR && infoR.url) {{
+    linkR.href = infoR.url;
+    linkR.innerHTML = '&#128279; Mira la NOTA completa &rarr; diarioinfo.com';
+    if (book) {{
+      const rectR = book.getBoundingClientRect();
+      const pageWR = rectR.width / 2;
+      linkR.style.left = (rectR.left + pageWR * 1.35) + 'px';
+      linkR.style.bottom = (window.innerHeight - rectR.bottom + 22) + 'px';
+      linkR.style.right = 'auto';
+    }}
+    linkR.style.display = 'block';
+  }} else {{
+    linkR.style.display = 'none';
   }}
 }}
 
