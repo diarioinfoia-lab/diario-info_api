@@ -23,16 +23,18 @@ exports.rewrite = async (req, res) => {
   const prompt =
     "Eres el editor periodistico del Diario Info de Santiago del Estero, Argentina.\n" +
     "Tu tarea es REESCRIBIR completamente esta noticia de " + (categoria || "general") + " para nuestra editorial.\n" +
-    "REGLAS OBLIGATORIAS:\n" +
-    "1. TITULO: Debe ser 100% original y creativo. PROHIBIDO copiar, traducir o parafrasear el titulo original. Usa un enfoque editorial propio. Maximo 100 caracteres.\n" +
-    "2. COPETE (bajada): Debe ser una sintesis editorial propia. PROHIBIDO repetir frases del titulo original ni del cuerpo original. Maximo 200 caracteres.\n" +
-    "3. CUERPO: Minimo 3 parrafos separados por doble salto de linea (\\n\\n). Cada parrafo debe terminar con punto. No inventar datos pero reformular todo con voz propia. Minimo 300 caracteres.\n" +
+    "REGLA MAS IMPORTANTE - PROHIBIDO INVENTAR:\n" +
+    "0. Esta regla esta por encima de todas las demas. No agregues ni asumas ningun dato, nombre, lugar, nacionalidad, profesion, cifra, fecha o hecho que no este EXPLICITAMENTE presente en la noticia original. Si un dato no esta claro o no aparece en la fuente, omitilo o describilo de forma generica en vez de inventarlo. Preferi un texto mas corto y preciso antes que uno mas largo con datos inventados.\n" +
+    "REGLAS DE ESTILO:\n" +
+    "1. TITULO: Debe ser una redaccion propia, no una copia ni traduccion literal del titulo original. Maximo 100 caracteres.\n" +
+    "2. COPETE (bajada): Debe ser una sintesis editorial propia, sin repetir frases textuales del titulo o cuerpo original. Maximo 200 caracteres.\n" +
+    "3. CUERPO: Minimo 3 parrafos separados por doble salto de linea (\\n\\n). Cada parrafo debe terminar con punto. Reformula con voz propia SOLO los hechos presentes en la fuente, no rellenes con informacion inventada para alcanzar la extension minima. Minimo 300 caracteres.\n" +
     "4. El cuerpo NO debe ser un texto continuo sin pausas. Cada parrafo es una idea completa separada visualmente.\n" +
     "Responde SOLO con JSON valido sin markdown ni bloques de codigo:\n" +
     '{"titulo": "titulo editorial original", "copete": "bajada editorial propia", "cuerpo": "parrafo 1...\\n\\nparrafo 2...\\n\\nparrafo 3..."}\n\n' +
-    "NOTICIA ORIGINAL (solo para extraer los hechos, no para copiar):\n" +
+    "NOTICIA ORIGINAL (unica fuente de hechos permitida, no agregues nada que no este aqui):\n" +
     "Titulo: " + titulo + "\n" +
-    "Cuerpo: " + cuerpo.substring(0, 2000);
+    "Cuerpo: " + cuerpo.substring(0, 3000);
 
   try {
     const response = await fetch(ANTHROPIC_API_URL, {
@@ -45,6 +47,7 @@ exports.rewrite = async (req, res) => {
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
         max_tokens: 1024,
+        temperature: 0.3,
         messages: [{ role: "user", content: prompt }],
       }),
     });
