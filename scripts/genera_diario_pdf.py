@@ -858,11 +858,9 @@ def insertar_publicidad(c, y_fin_texto, pie_y, M, W, col_cw, x_col1, x_col2, num
     """Inserta la mejor publicidad disponible en el espacio libre de la pagina."""
     global _publi_mostrados
     catalogo = _cargar_catalogo_publi()
-    print(f"  [PUBLI DEBUG] pag={num_pag} catalogo={len(catalogo)} avisos")
     if not catalogo:
         return
     espacio_mm = round((y_fin_texto - pie_y) / mm, 1)
-    print(f"  [PUBLI DEBUG] pag={num_pag} espacio_mm={espacio_mm}")
     if espacio_mm < 15:
         return
 
@@ -875,7 +873,7 @@ def insertar_publicidad(c, y_fin_texto, pie_y, M, W, col_cw, x_col1, x_col2, num
 
     def elegir_mejor(lista, espacio):
         """De una lista de publicidades, elegir la que mejor entre (max alto <= espacio)."""
-        candidatos = [p for p in lista if p['alto_mm'] <= espacio]
+        candidatos = [p for p in lista if p['alto_mm'] + 3 <= espacio]
         if not candidatos:
             return None
         return max(candidatos, key=lambda p: p['alto_mm'])
@@ -1027,7 +1025,6 @@ def generar_pagina_interior(c, nota, num_pag):
             col_cw, FUI_R, BODY_PTS, BODY_LH
         )
         _libre_mm = round((_y_fin_texto - PIE_Y) / mm, 1)
-        print(f"  [PUBLI DEBUG] pag={num_pag} desborde={desborde} libre_mm={_libre_mm}")
         if not desborde and _libre_mm >= 15:
             insertar_publicidad(c, _y_fin_texto, PIE_Y, M, W, col_cw, x_col1, x_col2, num_pag)
         if desborde:
