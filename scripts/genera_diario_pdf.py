@@ -861,7 +861,7 @@ def insertar_publicidad(c, y_fin_texto, pie_y, M, W, col_cw, x_col1, x_col2, num
     if not catalogo:
         return
     espacio_mm = round((y_fin_texto - pie_y) / mm, 1)
-    if espacio_mm < 25:
+    if espacio_mm < 15:
         return
 
     # Separar pagos vs institucionales
@@ -1025,7 +1025,7 @@ def generar_pagina_interior(c, nota, num_pag):
             col_cw, FUI_R, BODY_PTS, BODY_LH
         )
         _libre_mm = round((_y_fin_texto - PIE_Y) / mm, 1)
-        if not desborde and _libre_mm >= 25:
+        if not desborde and _libre_mm >= 15:
             insertar_publicidad(c, _y_fin_texto, PIE_Y, M, W, col_cw, x_col1, x_col2, num_pag)
         if desborde:
             c.setFont(FUI_R, 8)
