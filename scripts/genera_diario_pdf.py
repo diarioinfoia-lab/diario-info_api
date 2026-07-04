@@ -1144,7 +1144,7 @@ footer {{ background: #003366; width: 100%; text-align: center; padding: 8px; co
   <div class="logo">diarioinfo<span style="color:#fff">.com</span></div>
   <div class="header-date">{titulo}</div>
   <div class="header-links">
-    <a href="../revistas/diarioinfo/{fecha_str}.pdf" download>&#8595; PDF</a>
+    <a href="../revistas/diarioinfo/{fecha_str}.pdf?v={int(datetime.now().timestamp())}" download>&#8595; PDF</a>
     <a href="ediciones.php">Ediciones</a>
   </div>
 </header>
