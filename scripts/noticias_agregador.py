@@ -557,7 +557,7 @@ def reescribir_con_claude(articulo, categoria):
     try:
         payload = {
             "titulo":    articulo["titulo"],
-            "cuerpo":    articulo["cuerpo"][:2000],
+            "cuerpo":    articulo["cuerpo"][:3000],
             "categoria": categoria,
             "apiKey":    ANTHROPIC_API_KEY
         }
