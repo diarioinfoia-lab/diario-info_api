@@ -48,11 +48,22 @@ DB_FALLBACK  = "diario-info-db"
 BASE_IMG_URL = "https://ia.diarioinfo.com"
 
 # ── Directorios ────────────────────────────────────────────────────────────────
-HOY          = datetime.now()
+_FECHA_HISTORICA = None
+for _ai, _av in enumerate(sys.argv):
+    if _av == '--fecha' and _ai + 1 < len(sys.argv):
+        _FECHA_HISTORICA = sys.argv[_ai + 1]
+
+if _FECHA_HISTORICA:
+    HOY          = datetime.strptime(_FECHA_HISTORICA, "%Y-%m-%d")
+else:
+    HOY          = datetime.now()
 FECHA_STR    = HOY.strftime("%Y-%m-%d")
 DIR_REVISTAS = os.path.expanduser("~/public_html/revistas/diarioinfo")
 DIR_FLIPBOOK = os.path.expanduser("~/public_html/flipbook")
 DIR_FUENTES  = os.path.expanduser("~/.fonts_diario")
+if _FECHA_HISTORICA:
+    DIR_REVISTAS = os.path.join(DIR_REVISTAS, "historico")
+    DIR_FLIPBOOK = os.path.join(DIR_FLIPBOOK, "historico")
 PDF_PATH     = os.path.join(DIR_REVISTAS, f"{FECHA_STR}.pdf")
 FLIP_PATH    = os.path.join(DIR_FLIPBOOK, f"{FECHA_STR}.html")
 
@@ -1144,7 +1155,7 @@ footer {{ background: #003366; width: 100%; text-align: center; padding: 8px; co
   <div class="logo">diarioinfo<span style="color:#fff">.com</span></div>
   <div class="header-date">{titulo}</div>
   <div class="header-links">
-    <a href="../revistas/diarioinfo/{fecha_str}.pdf?v={int(datetime.now().timestamp())}" download>&#8595; PDF</a>
+    <a href="{pdf_url}?v={int(datetime.now().timestamp())}" download>&#8595; PDF</a>
     <a href="ediciones.php">Ediciones</a>
   </div>
 </header>
@@ -1321,7 +1332,10 @@ def main():
     print(f"PDF OK! {tam/1024:.1f} KB")
     
     print("Flipbook...")
-    pdf_url = f"https://diarioinfo.com/revistas/diarioinfo/{FECHA_STR}.pdf"
+    if _FECHA_HISTORICA:
+        pdf_url = f"../../revistas/diarioinfo/historico/{FECHA_STR}.pdf"
+    else:
+        pdf_url = f"../revistas/diarioinfo/{FECHA_STR}.pdf"
     generar_flipbook(PDF_PATH, pdf_url, FECHA_STR, notas, paginas_desborde)
 
     print(f"\n=== COMPLETADO ===")
