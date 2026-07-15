@@ -28,24 +28,24 @@ const getSubnet = (ip) => {
 const parseUserAgent = (ua) => {
   if (!ua) return { browser: "unknown", os: "unknown", deviceType: "unknown" };
   const browser = /Edg\//.test(ua)
-  ? "Edge"
+    ? "Edge"
     : /Chrome\//.test(ua)
-  ? "Chrome"
+    ? "Chrome"
     : /Firefox\//.test(ua)
-  ? "Firefox"
+    ? "Firefox"
     : /Safari\//.test(ua) && !/Chrome/.test(ua)
-  ? "Safari"
+    ? "Safari"
     : "other";
   const os = /Windows/.test(ua)
-  ? "Windows"
+    ? "Windows"
     : /Android/.test(ua)
-  ? "Android"
+    ? "Android"
     : /iPhone|iPad|iOS/.test(ua)
-  ? "iOS"
+    ? "iOS"
     : /Mac OS/.test(ua)
-  ? "macOS"
+    ? "macOS"
     : /Linux/.test(ua)
-  ? "Linux"
+    ? "Linux"
     : "other";
   const deviceType = /Mobile|Android|iPhone/.test(ua) ? "mobile" : "desktop";
   return { browser, os, deviceType };
@@ -54,14 +54,14 @@ const parseUserAgent = (ua) => {
 const generateSlug = (text) => {
   if (!text) return "";
   return text
-  .toString()
-  .toLowerCase()
-  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-  .replace(/\s+/g, "-")
-  .replace(/[^\w\-]+/g, "")
-  .replace(/\-\-+/g, "-")
-  .replace(/^-+/, "")
-  .replace(/-+$/, "");
+    .toString()
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^\w\-]+/g, "")
+    .replace(/\-\-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
 };
 
 // ---- ADMIN ENDPOINTS ----
@@ -79,7 +79,11 @@ exports.createPoll = async (req, res) => {
       title,
       description,
       slug: slug || generateSlug(title) + "-" + Date.now().toString(36),
-      options: options.map((o) => ({ text: typeof o === "string" ? o : o.text, votes: 0 })),
+      options: options.map((o) => ({
+        text: typeof o === "string" ? o : o.text,
+        imageUrl: typeof o === "string" ? null : (o.imageUrl || null),
+        votes: 0,
+      })),
       article: article || null,
       isSensitive: !!isSensitive,
       startDate: startDate || null,
@@ -90,10 +94,10 @@ exports.createPoll = async (req, res) => {
     });
     const data = await poll.save();
 
-  const log = new Log({ user: req.userId, action: "POLL_CREATED", details: `Poll "${data.title}" (${data._id}) created` });
+    const log = new Log({ user: req.userId, action: "POLL_CREATED", details: `Poll "${data.title}" (${data._id}) created` });
     await log.save();
 
-  res.status(201).send({ success: true, poll: data });
+    res.status(201).send({ success: true, poll: data });
   } catch (err) {
     res.status(500).send({ message: err.message || "Error creating poll" });
   }
@@ -110,9 +114,9 @@ exports.getPolls = async (req, res) => {
   try {
     const total = await Poll.countDocuments(condition);
     const polls = await Poll.find(condition)
-    .sort({ createdAt: -1 })
-    .skip((page - 1) * pageSize)
-    .limit(pageSize);
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize);
     res.send({ success: true, polls, total, totalPages: Math.ceil(total / pageSize) });
   } catch (err) {
     res.status(500).send({ message: err.message || "Error retrieving polls" });
@@ -124,27 +128,27 @@ exports.getPoll = async (req, res) => {
   try {
     const condition = { disabledAt: null };
     let data = id.match(/^[0-9a-fA-F]{24}$/)
-    ? await Poll.findOne({ _id: id, ...condition })
+      ? await Poll.findOne({ _id: id, ...condition })
       : null;
     if (!data) data = await Poll.findOne({ slug: id, ...condition });
     if (!data) return res.status(404).send({ message: "Poll not found" });
 
     const result = data.toObject();
-        let alreadyVoted = false;
-        const deviceToken = req.query.deviceToken;
-        if (deviceToken) {
-                const ip = getClientIp(req);
-                const ua = req.headers["user-agent"] || "";
-                const voterHash = hash(`${ip}|${ua}|${deviceToken}`);
-                const existingVote = await PollVote.findOne({ poll: data._id, voterHash });
-                alreadyVoted = !!existingVote;
-        }
-        if (!data.settings.showResultsBeforeVote && data.status !== "closed" && !alreadyVoted) {
-                result.options = result.options.map((o) => ({ _id: o._id, text: o.text }));
-                result.totalVotes = undefined;
-        }
-        res.send({ success: true, poll: result, alreadyVoted });
-  }     catch (err) {
+    let alreadyVoted = false;
+    const deviceToken = req.query.deviceToken;
+    if (deviceToken) {
+      const ip = getClientIp(req);
+      const ua = req.headers["user-agent"] || "";
+      const voterHash = hash(`${ip}|${ua}|${deviceToken}`);
+      const existingVote = await PollVote.findOne({ poll: data._id, voterHash });
+      alreadyVoted = !!existingVote;
+    }
+    if (!data.settings.showResultsBeforeVote && data.status !== "closed" && !alreadyVoted) {
+      result.options = result.options.map((o) => ({ _id: o._id, text: o.text, imageUrl: o.imageUrl }));
+      result.totalVotes = undefined;
+    }
+    res.send({ success: true, poll: result, alreadyVoted });
+  } catch (err) {
     res.status(500).send({ message: "Error retrieving poll" });
   }
 };
@@ -216,12 +220,12 @@ exports.getPollAudit = async (req, res) => {
       { $group: { _id: "$ipSubnetHash", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 20 },
-      ]);
+    ]);
     const byRegion = await PollVote.aggregate([
       { $match: { poll: new mongoose.Types.ObjectId(id) } },
       { $group: { _id: "$region", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
-      ]);
+    ]);
     res.send({ success: true, totalVotes, flaggedVotes, bySubnet, byRegion });
   } catch (err) {
     res.status(500).send({ message: "Error retrieving poll audit" });
@@ -252,29 +256,29 @@ exports.vote = async (req, res) => {
     if (!poll.options[optionIndex]) {
       return res.status(400).send({ message: "Invalid option" });
     }
-const pollId = poll._id;
-  const ip = getClientIp(req);
+    const pollId = poll._id;
+    const ip = getClientIp(req);
     const ua = req.headers["user-agent"] || "";
     const ipHash = hash(ip);
     const ipSubnetHash = hash(getSubnet(ip));
     const voterHash = hash(`${ip}|${ua}|${deviceToken}`);
 
-  const already = await PollVote.findOne({ poll: pollId, voterHash });
+    const already = await PollVote.findOne({ poll: pollId, voterHash });
     if (already) {
       return res.status(409).send({ message: "You have already voted in this poll" });
     }
 
-  const maxPerIp = poll.settings?.maxVotesPerIpPerHour ?? 3;
+    const maxPerIp = poll.settings?.maxVotesPerIpPerHour ?? 3;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentFromIp = await PollVote.countDocuments({ poll: pollId, ipHash, createdAt: { $gte: oneHourAgo } });
     if (recentFromIp >= maxPerIp) {
       return res.status(429).send({ message: "Too many votes from this connection, please try again later" });
     }
 
-  const subnetWindowMinutes = poll.isSensitive ? 10 : 30;
+    const subnetWindowMinutes = poll.isSensitive ? 10 : 30;
     const subnetThreshold = poll.isSensitive ? 15 : 40;
     const windowStart = new Date(Date.now() - subnetWindowMinutes * 60 * 1000);
-          const recentFromSubnet = await PollVote.countDocuments({ poll: pollId, ipSubnetHash, createdAt: { $gte: windowStart } });
+    const recentFromSubnet = await PollVote.countDocuments({ poll: pollId, ipSubnetHash, createdAt: { $gte: windowStart } });
     let flagged = false;
     let flagReason = null;
     if (recentFromSubnet >= subnetThreshold) {
@@ -286,35 +290,35 @@ const pollId = poll._id;
       }
     }
 
-  const { browser, os, deviceType } = parseUserAgent(ua);
+    const { browser, os, deviceType } = parseUserAgent(ua);
 
-  const voteDoc = new PollVote({
-    poll: pollId,
-    optionIndex,
-    voterHash,
-    ipHash,
-    ipSubnetHash,
-    region: req.headers["x-vercel-ip-city"] || req.headers["x-vercel-ip-country"] || null,
-    userAgentSummary: { browser, os, deviceType },
-    referrer: req.headers["referer"] || null,
-    flagged,
-    flagReason,
-  });
+    const voteDoc = new PollVote({
+      poll: pollId,
+      optionIndex,
+      voterHash,
+      ipHash,
+      ipSubnetHash,
+      region: req.headers["x-vercel-ip-city"] || req.headers["x-vercel-ip-country"] || null,
+      userAgentSummary: { browser, os, deviceType },
+      referrer: req.headers["referer"] || null,
+      flagged,
+      flagReason,
+    });
 
-  await voteDoc.save();
+    await voteDoc.save();
 
-  poll.options[optionIndex].votes += 1;
+    poll.options[optionIndex].votes += 1;
     poll.totalVotes = (poll.totalVotes || 0) + 1;
     await poll.save();
 
-  const revealResults = poll.settings?.showResultsAfterVote !== false;
+    const revealResults = poll.settings?.showResultsAfterVote !== false;
     const result = poll.toObject();
     if (!revealResults) {
-      result.options = result.options.map((o) => ({ _id: o._id, text: o.text }));
+      result.options = result.options.map((o) => ({ _id: o._id, text: o.text, imageUrl: o.imageUrl }));
       result.totalVotes = undefined;
     }
 
-  res.send({ success: true, poll: result });
+    res.send({ success: true, poll: result });
   } catch (err) {
     if (err.code === 11000) {
       return res.status(409).send({ message: "You have already voted in this poll" });
