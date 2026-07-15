@@ -233,7 +233,9 @@ exports.vote = async (req, res) => {
   }
 
   try {
-    const poll = await Poll.findOne({ _id: id, disabledAt: null });
+    const pollCondition = { disabledAt: null };
+    let poll = id.match(/^[0-9a-fA-F]{24}$/) ? await Poll.findOne({ _id: id, ...pollCondition }) : null;
+    if (!poll) poll = await Poll.findOne({ slug: id, ...pollCondition });
     if (!poll) return res.status(404).send({ message: "Poll not found" });
     if (poll.status !== "active") {
       return res.status(409).send({ message: "This poll is not currently accepting votes" });
