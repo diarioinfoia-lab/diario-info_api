@@ -243,21 +243,21 @@ exports.vote = async (req, res) => {
     if (!poll.options[optionIndex]) {
       return res.status(400).send({ message: "Invalid option" });
     }
-
+const pollId = poll._id;
   const ip = getClientIp(req);
     const ua = req.headers["user-agent"] || "";
     const ipHash = hash(ip);
     const ipSubnetHash = hash(getSubnet(ip));
     const voterHash = hash(`${ip}|${ua}|${deviceToken}`);
 
-  const already = await PollVote.findOne({ poll: id, voterHash });
+  const already = await PollVote.findOne({ poll: pollId, voterHash });
     if (already) {
       return res.status(409).send({ message: "You have already voted in this poll" });
     }
 
   const maxPerIp = poll.settings?.maxVotesPerIpPerHour ?? 3;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentFromIp = await PollVote.countDocuments({ poll: id, ipHash, createdAt: { $gte: oneHourAgo } });
+    const recentFromIp = await PollVote.countDocuments({ poll: pollId, ipHash, createdAt: { $gte: oneHourAgo } });
     if (recentFromIp >= maxPerIp) {
       return res.status(429).send({ message: "Too many votes from this connection, please try again later" });
     }
@@ -265,7 +265,7 @@ exports.vote = async (req, res) => {
   const subnetWindowMinutes = poll.isSensitive ? 10 : 30;
     const subnetThreshold = poll.isSensitive ? 15 : 40;
     const windowStart = new Date(Date.now() - subnetWindowMinutes * 60 * 1000);
-    const recentFromSubnet = await PollVote.countDocuments({ poll: id, ipSubnetHash, createdAt: { $gte: windowStart } });
+          const recentFromSubnet = await PollVote.countDocuments({ poll: pollId, ipSubnetHash, createdAt: { $gte: windowStart } });
     let flagged = false;
     let flagReason = null;
     if (recentFromSubnet >= subnetThreshold) {
@@ -280,7 +280,7 @@ exports.vote = async (req, res) => {
   const { browser, os, deviceType } = parseUserAgent(ua);
 
   const voteDoc = new PollVote({
-    poll: id,
+    poll: pollId,
     optionIndex,
     voterHash,
     ipHash,
