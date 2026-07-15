@@ -94,5 +94,6 @@ api.use(require("./routes/log.router"));
 
 api.use(require('./routes/pdf.router'));
 api.use(require('./routes/rewrite.router'));
+api.use(require('./routes/poll.router'));
 
 module.exports = api;
