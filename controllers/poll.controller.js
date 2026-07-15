@@ -129,13 +129,22 @@ exports.getPoll = async (req, res) => {
     if (!data) data = await Poll.findOne({ slug: id, ...condition });
     if (!data) return res.status(404).send({ message: "Poll not found" });
 
-  const result = data.toObject();
-    if (!data.settings.showResultsBeforeVote && data.status !== "closed") {
-      result.options = result.options.map((o) => ({ _id: o._id, text: o.text }));
-      result.totalVotes = undefined;
-    }
-    res.send({ success: true, poll: result });
-  } catch (err) {
+    const result = data.toObject();
+        let alreadyVoted = false;
+        const deviceToken = req.query.deviceToken;
+        if (deviceToken) {
+                const ip = getClientIp(req);
+                const ua = req.headers["user-agent"] || "";
+                const voterHash = hash(`${ip}|${ua}|${deviceToken}`);
+                const existingVote = await PollVote.findOne({ poll: data._id, voterHash });
+                alreadyVoted = !!existingVote;
+        }
+        if (!data.settings.showResultsBeforeVote && data.status !== "closed" && !alreadyVoted) {
+                result.options = result.options.map((o) => ({ _id: o._id, text: o.text }));
+                result.totalVotes = undefined;
+        }
+        res.send({ success: true, poll: result, alreadyVoted });
+  }     catch (err) {
     res.status(500).send({ message: "Error retrieving poll" });
   }
 };
