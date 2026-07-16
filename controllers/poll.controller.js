@@ -139,7 +139,7 @@ exports.getPoll = async (req, res) => {
     if (deviceToken) {
       const ip = getClientIp(req);
       const ua = req.headers["user-agent"] || "";
-      const voterHash = hash(`${ip}|${ua}|${deviceToken}`);
+      const voterHash = hash(`device|${deviceToken}`);
       const existingVote = await PollVote.findOne({ poll: data._id, voterHash });
       alreadyVoted = !!existingVote;
     }
@@ -261,7 +261,7 @@ exports.vote = async (req, res) => {
     const ua = req.headers["user-agent"] || "";
     const ipHash = hash(ip);
     const ipSubnetHash = hash(getSubnet(ip));
-    const voterHash = hash(`${ip}|${ua}|${deviceToken}`);
+    const voterHash = hash(`device|${deviceToken}`);
 
     const already = await PollVote.findOne({ poll: pollId, voterHash });
     if (already) {
