@@ -140,7 +140,8 @@ exports.getPoll = async (req, res) => {
       const ip = getClientIp(req);
       const ua = req.headers["user-agent"] || "";
       const voterHash = hash(`device|${deviceToken}`);
-      const existingVote = await PollVote.findOne({ poll: data._id, voterHash });
+      const legacyVoterHash = hash(`${ip}|${ua}|${deviceToken}`);
+      const existingVote = await PollVote.findOne({ poll: data._id, voterHash: { $in: [voterHash, legacyVoterHash] } });
       alreadyVoted = !!existingVote;
     }
     if (!data.settings.showResultsBeforeVote && data.status !== "closed" && !alreadyVoted) {
@@ -262,8 +263,9 @@ exports.vote = async (req, res) => {
     const ipHash = hash(ip);
     const ipSubnetHash = hash(getSubnet(ip));
     const voterHash = hash(`device|${deviceToken}`);
+    const legacyVoterHash = hash(`${ip}|${ua}|${deviceToken}`);
 
-    const already = await PollVote.findOne({ poll: pollId, voterHash });
+    const already = await PollVote.findOne({ poll: pollId, voterHash: { $in: [voterHash, legacyVoterHash] } });
     if (already) {
       return res.status(409).send({ message: "You have already voted in this poll" });
     }
