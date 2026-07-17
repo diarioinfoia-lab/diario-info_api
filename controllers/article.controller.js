@@ -255,25 +255,28 @@ exports.getPublicArticles = async (req, res) => {
     ];
   }
 
-  if (destination) {
-    condition.destination = {
-      $regex: `^${destination.trim()}$`,
-      $options: "i",
-    };
-  } else {
-    condition.$and = (condition.$and || []).concat([
-      {
-        $or: [
-          { destination: { $exists: false } },
-          { destination: null },
-          { destination: "" },
-          { destination: { $regex: "^general$", $options: "i" } },
-        ],
-      },
-    ]);
-  }
-
   try {
+    // Apply destination filter ONLY when no text search is active
+    if (!title) {
+      if (destination) {
+        condition.destination = {
+          $regex: `^${destination.trim()}$`,
+          $options: "i",
+        };
+      } else {
+        condition.$and = (condition.$and || []).concat([
+          {
+            $or: [
+              { destination: { $exists: false } },
+              { destination: null },
+              { destination: "" },
+              { destination: { $regex: "^general$", $options: "i" } },
+            ],
+          },
+        ]);
+      }
+    }
+
     if (category) {
       const isObjectId = /^[0-9a-fA-F]{24}$/.test(category);
       const categoryDoc = await Category.findOne({
