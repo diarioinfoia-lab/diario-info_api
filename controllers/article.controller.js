@@ -29,9 +29,9 @@ const addInteractionStats = async (articles, userId = null) => {
   // Get user-specific interactions if userId is provided
   const userInteractions = isIdValid
     ? await Interaction.find({
-        user: userIdStr,
-        article: { $in: articleIds },
-      })
+      user: userIdStr,
+      article: { $in: articleIds },
+    })
     : [];
 
   const results = articleList.map((article) => {
@@ -242,23 +242,41 @@ exports.getPublicArticles = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 10;
   const condition = { status: "published" };
+  const skip = req.query.skip !== undefined
+    ? parseInt(req.query.skip)
+    : (page - 1) * pageSize; // 👈 fallback a comportamiento actual
+
 
   if (title) {
     const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     condition.$or = [
       { title: { $regex: escapedTitle, $options: "i" } },
-      { description: { $regex: escapedTitle, $options: "i" } }
+      { description: { $regex: escapedTitle, $options: "i" } },
     ];
   }
 
-  if (destination) {
-    condition.destination = {
-      $regex: `^${destination.trim()}$`,
-      $options: "i",
-    };
-  }
-
   try {
+    // Apply destination filter ONLY when no text search is active
+    if (!title) {
+      if (destination) {
+        condition.destination = {
+          $regex: `^${destination.trim()}$`,
+          $options: "i",
+        };
+      } else {
+        condition.$and = (condition.$and || []).concat([
+          {
+            $or: [
+              { destination: { $exists: false } },
+              { destination: null },
+              { destination: "" },
+              { destination: { $regex: "^general$", $options: "i" } },
+            ],
+          },
+        ]);
+      }
+    }
+
     if (category) {
       const isObjectId = /^[0-9a-fA-F]{24}$/.test(category);
       const categoryDoc = await Category.findOne({
@@ -303,7 +321,7 @@ exports.getPublicArticles = async (req, res) => {
           _id: -1,
         },
       },
-      { $skip: (page - 1) * pageSize },
+      { $skip: skip },
       { $limit: pageSize },
       { $project: { _id: 1 } },
     ]);

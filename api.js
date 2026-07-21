@@ -91,6 +91,7 @@ api.use(require("./routes/importer.router"));
 api.use(require("./routes/bot.router"));
 api.use(require("./routes/playlist.router"));
 api.use(require("./routes/log.router"));
+api.use(require("./routes/astro.router"));
 
 api.use(require('./routes/pdf.router'));
 api.use(require('./routes/rewrite.router'));
