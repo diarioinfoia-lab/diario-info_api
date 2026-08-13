@@ -330,7 +330,15 @@ CATEGORIAS = {
 }
 
 
-URLS_FILE = "/home/diarioin/scripts/urls_procesadas.json"
+# ── Deduplicacion persistente ────────────────────────────────────────────────
+# Antes se guardaba un archivo local (urls_procesadas.json) que solo evitaba
+# reprocesar la MISMA url, y la comparacion de titulos similares solo miraba
+# lo publicado en la corrida actual (se perdia al terminar el script). Ahora
+# ambas cosas se guardan en Mongo, en una coleccion propia con TTL, para que
+# la deduplicacion funcione tambien ENTRE corridas de cron (ej: una fuente
+# publica una nota y dos horas despues otra fuente cubre el mismo hecho).
+MONGO_DEDUP_COL     = "agregador_dedup"
+VENTANA_DEDUP_HORAS = 8   # ventana de comparacion (> intervalo del cron de 2h)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -443,25 +451,59 @@ def extraer_imagen_principal(soup, fuente):
     return None
 
 
-def cargar_urls_procesadas():
-    """Carga URLs ya procesadas desde archivo."""
-    if os.path.exists(URLS_FILE):
-        try:
-            with open(URLS_FILE, 'r') as f:
-                return set(json.load(f))
-        except Exception:
-            pass
-    return set()
-
-
-def guardar_url_procesada(url, urls_set):
-    """Guarda una URL en el archivo de procesadas."""
-    urls_set.add(url)
+def normalizar_url(url):
+    """Normaliza una URL para detectar la misma nota aunque cambien parametros
+    de tracking (?utm_source=..., barra final, www. vs sin www.)."""
     try:
-        with open(URLS_FILE, 'w') as f:
-            json.dump(list(urls_set), f)
+        from urllib.parse import urlsplit, urlunsplit
+        p = urlsplit(url)
+        netloc = p.netloc.lower()
+        if netloc.startswith('www.'):
+            netloc = netloc[4:]
+        path = p.path.rstrip('/')
+        return urlunsplit((p.scheme, netloc, path, '', ''))
+    except Exception:
+        return url
+
+
+def preparar_coleccion_dedup(col_dedup):
+    """Asegura el indice TTL (idempotente: si ya existe, no hace nada)."""
+    try:
+        col_dedup.create_index("createdAt", expireAfterSeconds=VENTANA_DEDUP_HORAS * 3 * 3600)
     except Exception as e:
-        logger.error(f"Error guardando URL procesada: {e}")
+        logger.warning(f"No se pudo asegurar indice TTL de dedup: {e}")
+
+
+def cargar_pool_dedup(col_dedup):
+    """Trae URLs normalizadas y titulos originales procesados en la ventana
+    reciente (incluye corridas de cron anteriores, no solo la actual)."""
+    desde = datetime.now(timezone.utc) - timedelta(hours=VENTANA_DEDUP_HORAS)
+    try:
+        docs = col_dedup.find({"createdAt": {"$gte": desde}}, {"url": 1, "titulo": 1})
+        urls, titulos = set(), []
+        for d in docs:
+            if d.get("url"):
+                urls.add(d["url"])
+            if d.get("titulo"):
+                titulos.append(d["titulo"])
+        logger.info(f"Pool de dedup: {len(urls)} URLs, {len(titulos)} titulos (ultimas {VENTANA_DEDUP_HORAS}h)")
+        return urls, titulos
+    except Exception as e:
+        logger.error(f"Error cargando pool de dedup: {e}")
+        return set(), []
+
+
+def registrar_dedup(col_dedup, url, titulo_original):
+    """Registra una URL/titulo ya procesados para que corridas futuras
+    (dentro de la ventana TTL) no los repitan."""
+    try:
+        col_dedup.insert_one({
+            "url": normalizar_url(url),
+            "titulo": titulo_original,
+            "createdAt": datetime.now(timezone.utc),
+        })
+    except Exception as e:
+        logger.error(f"Error registrando dedup: {e}")
 
 
 def scrape_lista_articulos(fuente):
@@ -654,21 +696,23 @@ def generar_tags(titulo, copete, categoria, fuente_nombre):
     return result
 
 def conectar_mongo():
-    """Conecta a MongoDB y retorna (col_articles, col_files) o (None, None)."""
+    """Conecta a MongoDB y retorna (col_articles, col_files, col_dedup) o (None, None, None)."""
     if not PYMONGO_OK:
         logger.error("pymongo no instalado. Ejecutar: pip install pymongo")
-        return None, None
+        return None, None, None
     try:
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
         client.server_info()
         db = client[MONGO_DB]
         col_art = db[MONGO_COLLECTION]
         col_files = db[MONGO_FILES_COL]
+        col_dedup = db[MONGO_DEDUP_COL]
+        preparar_coleccion_dedup(col_dedup)
         logger.info("Conexion MongoDB exitosa")
-        return col_art, col_files
+        return col_art, col_files, col_dedup
     except Exception as e:
         logger.error(f"Error conectando MongoDB: {e}")
-        return None, None
+        return None, None, None
 
 
 def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_original, imagen_url, credito_imagen, es_sde=False, paso_por_ia=True):
@@ -730,19 +774,38 @@ def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_orig
         return False
 
 
+STOPWORDS_DEDUP = {
+    'el','la','los','las','un','una','unos','unas','de','del','al','en','por',
+    'con','sin','sobre','entre','para','que','se','su','sus','fue','es','era',
+    'son','han','hay','tras','ante','bajo','como','mas','pero','y','e','o','u',
+    'a','le','les','lo','me','te','nos','si','no','ya','muy','bien','este',
+    'esta','estos','estas','sera','seran','luego','despues','tambien'
+}
+
+
 def normalizar_titulo(titulo):
-    """Normaliza un titulo para comparacion de similitud."""
-    import unicodedata, re
+    """Normaliza un titulo (minuscula, sin acentos, solo alfanumerico)."""
     s = titulo.lower().strip()
     s = unicodedata.normalize('NFD', s)
     s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
     s = re.sub(r'[^a-z0-9 ]', '', s)
     return s
 
-def titulos_similares(t1, t2, umbral=0.70):
-    """Devuelve True si dos titulos son similares (>= umbral de palabras en comun)."""
-    w1 = set(normalizar_titulo(t1).split())
-    w2 = set(normalizar_titulo(t2).split())
+
+def palabras_clave(titulo):
+    """Palabras con contenido de un titulo (sin stopwords). Si el titulo es
+    muy corto y queda vacio tras filtrar, usa todas las palabras como fallback
+    para no perder la comparacion."""
+    palabras = normalizar_titulo(titulo).split()
+    filtradas = {p for p in palabras if p not in STOPWORDS_DEDUP and len(p) > 2}
+    return filtradas if filtradas else set(palabras)
+
+
+def titulos_similares(t1, t2, umbral=0.65):
+    """Devuelve True si dos titulos parecen tratar el mismo hecho, comparando
+    solo palabras con contenido (se ignoran articulos/preposiciones, que antes
+    diluian el puntaje y generaban falsos positivos y falsos negativos)."""
+    w1, w2 = palabras_clave(t1), palabras_clave(t2)
     if not w1 or not w2:
         return False
     interseccion = w1 & w2
@@ -758,18 +821,20 @@ def main():
     logger.info(f"Filtrando noticias de las ultimas {HORAS_MAX} horas")
     logger.info("=" * 60)
 
-    # Cargar URLs ya procesadas
-    urls_procesadas = cargar_urls_procesadas()
-    logger.info(f"URLs procesadas previamente: {len(urls_procesadas)}")
-
     # Conectar a MongoDB
-    col_art, col_files = conectar_mongo()
+    col_art, col_files, col_dedup = conectar_mongo()
     if col_art is None:
         logger.error("No se pudo conectar a MongoDB. Abortando.")
         return
 
+    # Pool de deduplicacion: URLs normalizadas + titulos originales procesados
+    # en las ultimas VENTANA_DEDUP_HORAS, sin importar en que corrida de cron
+    # se hayan procesado. Se sigue completando en memoria durante esta misma
+    # corrida (igual que antes), pero ahora arranca con el historial reciente
+    # en vez de una lista vacia.
+    urls_vistas, titulos_vistos = cargar_pool_dedup(col_dedup)
+
     total_publicados = 0
-    titulos_esta_ejecucion = []  # para deduplicacion entre fuentes
 
     # Procesar cada fuente
     for fuente in FUENTES:
@@ -783,15 +848,18 @@ def main():
         publicados_fuente = 0
 
         for url in urls:
-            # Verificar si ya fue procesada
-            if url in urls_procesadas:
+            # Verificar si ya fue procesada (URL normalizada, ignora
+            # parametros de tracking / www. / barra final)
+            url_norm = normalizar_url(url)
+            if url_norm in urls_vistas:
                 logger.debug(f"Ya procesada: {url}")
                 continue
 
             # Scrape del articulo (incluye filtro de fecha)
             articulo = scrape_articulo(url, fuente)
             if not articulo:
-                guardar_url_procesada(url, urls_procesadas)
+                registrar_dedup(col_dedup, url, "")
+                urls_vistas.add(url_norm)
                 continue
 
             # Reescribir con Gemini (con fallback)
@@ -808,12 +876,14 @@ def main():
             # Deduplicacion: comparamos el TITULO ORIGINAL scrapeado (antes de la IA), ya que
             # la reescritura cambia intencionalmente la redaccion, y dos notas del mismo hecho
             # pueden terminar con titulos muy distintos despues de pasar por la IA.
-            # Se aplica a TODAS las fuentes (no solo interior/es_sde).
+            # Se aplica a TODAS las fuentes (no solo interior/es_sde), y ahora tambien
+            # contra lo publicado en corridas de cron anteriores (no solo la actual).
             titulo_original = articulo.get('titulo', '')
-            titulo_candidato = nota_reescrita.get('titulo', titulo_original)
-            if any(titulos_similares(titulo_original, t) for t in titulos_esta_ejecucion):
+            if any(titulos_similares(titulo_original, t) for t in titulos_vistos):
                 logger.info(f"  [SKIP-DEDUP] Titulo similar ya existe: {titulo_original[:60]}")
-                guardar_url_procesada(url, urls_procesadas)
+                registrar_dedup(col_dedup, url, titulo_original)
+                urls_vistas.add(url_norm)
+                titulos_vistos.append(titulo_original)
                 continue
 
             # Publicar en MongoDB
@@ -829,8 +899,9 @@ def main():
                 es_sde=fuente.get('es_sde', False),
                 paso_por_ia=paso_por_ia
             ):
-                guardar_url_procesada(url, urls_procesadas)
-                titulos_esta_ejecucion.append(titulo_original)
+                registrar_dedup(col_dedup, url, titulo_original)
+                urls_vistas.add(url_norm)
+                titulos_vistos.append(titulo_original)
                 publicados_fuente += 1
                 total_publicados += 1
 
