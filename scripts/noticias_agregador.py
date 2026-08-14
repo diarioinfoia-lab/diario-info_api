@@ -843,6 +843,31 @@ STOPWORDS_DEDUP = {
     'esta','estos','estas','sera','seran','luego','despues','tambien'
 }
 
+# Sinonimos de vocabulario policial/judicial: dos medios cubriendo el mismo
+# hecho suelen usar verbos distintos ("arrestaron" vs "detuvieron", "asalto"
+# vs "robo"), y como esas palabras no se parecen entre si letra por letra,
+# el matching por overlap de palabras las trataba como si no tuvieran nada
+# en comun y subestimaba la similitud real. Se normalizan a una forma
+# canonica antes de comparar. A proposito NO se incluyen verbos de resultado
+# deportivo (goleo/vencio/gano): dos partidos con resultado opuesto ya
+# comparten casi todo el resto del titulo (equipos, estadio), asi que
+# unificar tambien esos verbos aumentaria falsos positivos en vez de
+# reducirlos.
+SINONIMOS_DEDUP = {
+    'arrestaron':'detener','arresto':'detener','arrestado':'detener','arrestada':'detener',
+    'detuvieron':'detener','detuvo':'detener','detenido':'detener','detenida':'detener','detiene':'detener',
+    'aprehendieron':'detener','aprehendido':'detener','capturaron':'detener','capturado':'detener',
+    'robo':'robar','robaron':'robar','hurto':'robar','hurtaron':'robar',
+    'asalto':'robar','asaltaron':'robar','sustrajeron':'robar',
+    'choco':'choque','chocaron':'choque','colision':'choque','colisiono':'choque',
+    'embistio':'choque','embistieron':'choque',
+    'murio':'morir','murieron':'morir','fallecio':'morir','fallecieron':'morir','deceso':'morir',
+    'heridos':'herido','lesionado':'herido','lesionados':'herido','lesionada':'herido',
+    'procesado':'imputado','acusado':'imputado','acusada':'imputado',
+    'investigan':'investigar','investigacion':'investigar','indagan':'investigar',
+    'allanaron':'allanamiento','allano':'allanamiento',
+}
+
 def normalizar_titulo(titulo):
     """Normaliza un titulo (minuscula, sin acentos, solo alfanumerico)."""
     s = titulo.lower().strip()
@@ -852,11 +877,15 @@ def normalizar_titulo(titulo):
     return s
 
 def palabras_clave(titulo):
-    """Palabras con contenido de un titulo (sin stopwords). Si el titulo es
-    muy corto y queda vacio tras filtrar, usa todas las palabras como fallback
-    para no perder la comparacion."""
+    """Palabras con contenido de un titulo (sin stopwords, sinonimos policiales
+    normalizados a una forma canonica). Si el titulo es muy corto y queda
+    vacio tras filtrar, usa todas las palabras como fallback para no perder
+    la comparacion."""
     palabras = normalizar_titulo(titulo).split()
-    filtradas = {p for p in palabras if p not in STOPWORDS_DEDUP and len(p) > 2}
+    filtradas = {
+        SINONIMOS_DEDUP.get(p, p)
+        for p in palabras if p not in STOPWORDS_DEDUP and len(p) > 2
+    }
     return filtradas if filtradas else set(palabras)
 
 def titulos_similares(t1, t2, umbral=0.65):
