@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<!--
+  Panel de control de categorias - Agregador de Noticias DiarioInfo
+  ===================================================================
+  Que es esto: una pagina sola, sin backend propio, que lee y escribe
+  directo en MongoDB Atlas a traves de su "Data API" (una API HTTPS que
+  Atlas expone opcionalmente, sin tocar nada del codigo de la web
+  principal ni de Vercel). El script noticias_agregador.py lee el mismo
+  documento antes de cada corrida y salta las categorias que esten
+  destildadas aca.
+
+  COMO ACTIVARLA (una sola vez, todo dentro de MongoDB Atlas):
+  1. Entra a cloud.mongodb.com, elegi tu proyecto/cluster.
+  2. En el menu izquierdo, "App Services" (o "Data API" segun la version
+     de Atlas) -> "Data API" -> "Enable the Data API".
+  3. Atlas te va a mostrar una "URL Endpoint" (algo como
+     https://us-east-1.aws.data.mongodb-api.com/app/data-xxxxx/endpoint/data/v1)
+     - copiala en DATA_API_URL mas abajo.
+  4. En la misma pantalla, "Create API Key", le pones un nombre
+     (ej. "panel-categorias") y copiado el valor que te muestra UNA SOLA
+     VEZ en API_KEY mas abajo.
+  5. Anotá el nombre exacto de tu cluster (ej. "Cluster0") en DATA_SOURCE.
+  6. Elegi un PIN cualquiera (numeros o texto) y ponelo en PANEL_PIN.
+  7. Guarda este archivo y subilo por cPanel -> File Manager a, por
+     ejemplo, /home/diarioin/public_html/panel-categorias.html (el nombre
+     de carpeta y archivo los elegis vos; cuanto menos obvio, mejor, ya
+     que el PIN de abajo es una traba simple, no seguridad real).
+
+  Nota de seguridad: el PIN se valida en el propio navegador (no hay
+  servidor propio corriendo), asi que no es una proteccion fuerte -
+  cualquiera que mire el codigo fuente de la pagina podria leerlo. Sirve
+  para que no cualquiera que encuentre el link cambie las categorias sin
+  querer, no para datos sensibles. La API Key de Mongo que se usa aca
+  tiene que tener permisos limitados solo a esta base (ver paso 4).
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Panel de categorias - Agregador DiarioInfo</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --border: #2a2e38;
+    --text: #e8eaed;
+    --muted: #9aa0ac;
+    --accent: #4c8bf5;
+    --accent-off: #3a3f4b;
+    --ok: #3ecf8e;
+    --err: #e5484d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+  }
+  h1 {
+    font-size: 19px;
+    margin: 0 0 6px;
+  }
+  p.sub {
+    color: var(--muted);
+    font-size: 13.5px;
+    margin: 0 0 22px;
+    line-height: 1.5;
+  }
+  .pin-row {
+    display: flex;
+    gap: 8px;
+  }
+  input[type="password"], input[type="text"] {
+    flex: 1;
+    background: #10131a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 12px;
+    border-radius: 8px;
+    font-size: 15px;
+  }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 11px 18px;
+    border-radius: 8px;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.secondary {
+    background: var(--accent-off);
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .categorias { display: none; }
+  .categorias.visible { display: block; }
+  .cat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat-row:last-of-type { border-bottom: none; }
+  .cat-row label {
+    font-size: 15.5px;
+    cursor: pointer;
+  }
+  .cat-row .fuentes-count {
+    color: var(--muted);
+    font-size: 12.5px;
+    display: block;
+    margin-top: 2px;
+  }
+  .switch {
+    position: relative;
+    width: 44px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--accent-off);
+    border-radius: 999px;
+    transition: 0.15s;
+  }
+  .slider:before {
+    content: "";
+    position: absolute;
+    height: 20px; width: 20px;
+    left: 3px; bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.15s;
+  }
+  input:checked + .slider { background: var(--accent); }
+  input:checked + .slider:before { transform: translateX(18px); }
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .msg {
+    margin-top: 14px;
+    font-size: 13.5px;
+    min-height: 18px;
+  }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  .loading { color: var(--muted); font-size: 13.5px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Agregador de noticias - Categorias activas</h1>
+  <p class="sub">Destildá lo que NO querés que traiga el próximo scrapeo. Los cambios se aplican en la próxima corrida del cron (no interrumpe la que esté en curso).</p>
+
+  <div id="pin-gate">
+    <div class="pin-row">
+      <input type="password" id="pin-input" placeholder="PIN" autocomplete="off">
+      <button id="pin-btn">Entrar</button>
+    </div>
+    <div class="msg err" id="pin-msg"></div>
+  </div>
+
+  <div class="categorias" id="categorias-box">
+    <div id="loading" class="loading">Cargando configuración actual...</div>
+    <div id="lista-cats"></div>
+    <div class="actions">
+      <button id="guardar-btn" disabled>Guardar cambios</button>
+      <button id="marcar-todo-btn" class="secondary">Marcar todo</button>
+    </div>
+    <div class="msg" id="save-msg"></div>
+  </div>
+</div>
+
+<script>
+// ── Completar antes de usar (ver instrucciones al principio del archivo) ──
+const DATA_API_URL  = "PEGAR_TU_DATA_API_URL_ENDPOINT_AQUI"; // ej: https://xxxx.data.mongodb-api.com/app/data-xxxxx/endpoint/data/v1
+const API_KEY        = "PEGAR_TU_API_KEY_AQUI";
+const DATA_SOURCE     = "Cluster0";        // nombre exacto de tu cluster en Atlas
+const DATABASE        = "diarioinfo-db";
+const COLLECTION      = "agregador_config";
+const PANEL_PIN       = "CAMBIAR_ESTE_PIN";
+// ────────────────────────────────────────────────────────────────────────
+
+const CATEGORIAS = [
+  { key: "policiales",    label: "Policiales",    fuentes: 2 },
+  { key: "judiciales",    label: "Judiciales",    fuentes: 1 },
+  { key: "deportes",      label: "Deportes",      fuentes: 3 },
+  { key: "espectaculos",  label: "Espectáculos",  fuentes: 1 },
+  { key: "politica",      label: "Política",      fuentes: 2 },
+  { key: "interior",      label: "Interior (Santiago del Estero)", fuentes: 10 },
+];
+
+const pinInput = document.getElementById('pin-input');
+const pinBtn = document.getElementById('pin-btn');
+const pinMsg = document.getElementById('pin-msg');
+const pinGate = document.getElementById('pin-gate');
+const catsBox = document.getElementById('categorias-box');
+const listaCats = document.getElementById('lista-cats');
+const loadingEl = document.getElementById('loading');
+const guardarBtn = document.getElementById('guardar-btn');
+const marcarTodoBtn = document.getElementById('marcar-todo-btn');
+const saveMsg = document.getElementById('save-msg');
+
+pinBtn.addEventListener('click', intentarEntrar);
+pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') intentarEntrar(); });
+
+function intentarEntrar() {
+  if (pinInput.value === PANEL_PIN) {
+    pinGate.style.display = 'none';
+    catsBox.classList.add('visible');
+    cargarConfig();
+  } else {
+    pinMsg.textContent = 'PIN incorrecto.';
+  }
+}
+
+async function dataApiCall(action, body) {
+  const resp = await fetch(`${DATA_API_URL}/action/${action}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Request-Headers': '*',
+      'api-key': API_KEY,
+    },
+    body: JSON.stringify({ dataSource: DATA_SOURCE, database: DATABASE, collection: COLLECTION, ...body }),
+  });
+  if (!resp.ok) {
+    const texto = await resp.text().catch(() => '');
+    throw new Error(`HTTP ${resp.status}: ${texto.slice(0, 200)}`);
+  }
+  return resp.json();
+}
+
+async function cargarConfig() {
+  loadingEl.style.display = 'block';
+  try {
+    const data = await dataApiCall('findOne', { filter: { _id: 'config' } });
+    const doc = data.document || {};
+    renderCategorias(doc);
+  } catch (e) {
+    loadingEl.textContent = 'No se pudo cargar la configuración: ' + e.message;
+    loadingEl.className = 'msg err';
+  }
+}
+
+function renderCategorias(doc) {
+  loadingEl.style.display = 'none';
+  listaCats.innerHTML = '';
+  CATEGORIAS.forEach(cat => {
+    const activo = doc[cat.key] !== false; // default true si no existe el campo
+    const row = document.createElement('div');
+    row.className = 'cat-row';
+    row.innerHTML = `
+      <label for="chk-${cat.key}">
+        ${cat.label}
+        <span class="fuentes-count">${cat.fuentes} fuente${cat.fuentes === 1 ? '' : 's'}</span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="chk-${cat.key}" data-cat="${cat.key}" ${activo ? 'checked' : ''}>
+        <span class="slider"></span>
+      </label>
+    `;
+    listaCats.appendChild(row);
+  });
+  guardarBtn.disabled = false;
+}
+
+marcarTodoBtn.addEventListener('click', () => {
+  CATEGORIAS.forEach(cat => {
+    document.getElementById(`chk-${cat.key}`).checked = true;
+  });
+});
+
+guardarBtn.addEventListener('click', async () => {
+  guardarBtn.disabled = true;
+  saveMsg.textContent = 'Guardando...';
+  saveMsg.className = 'msg';
+  const set = {};
+  CATEGORIAS.forEach(cat => {
+    set[cat.key] = document.getElementById(`chk-${cat.key}`).checked;
+  });
+  try {
+    await dataApiCall('updateOne', {
+      filter: { _id: 'config' },
+      update: { $set: set },
+      upsert: true,
+    });
+    const activas = CATEGORIAS.filter(c => set[c.key]).map(c => c.label);
+    saveMsg.textContent = activas.length
+      ? `Guardado. Próxima corrida traerá: ${activas.join(', ')}.`
+      : 'Guardado, pero no queda ninguna categoría activa: el próximo scrapeo no traería nada.';
+    saveMsg.className = 'msg ok';
+  } catch (e) {
+    saveMsg.textContent = 'Error al guardar: ' + e.message;
+    saveMsg.className = 'msg err';
+  } finally {
+    guardarBtn.disabled = false;
+  }
+});
+</script>
+
+</body>
+</html>
