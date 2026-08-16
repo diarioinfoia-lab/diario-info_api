@@ -47,11 +47,22 @@ MONGO_URI        = os.environ.get("MONGO_URI", "")
 MONGO_DB         = "diarioinfo-db"
 MONGO_COLLECTION = "articles"
 MONGO_FILES_COL  = "files"
+MONGO_CONFIG_COL = "agregador_config"
 
 ANTHROPIC_API_KEY   = os.environ.get("ANTHROPIC_API_KEY", "")
 VERCEL_REWRITE_URL  = "https://diario-info-api.vercel.app/rewrite"
 
-HORAS_MAX = 1.5  # Solo noticias de las ultimas N horas
+# HORAS_MAX debe ser mayor al intervalo del cron (6hs) mas un margen, si no
+# quedan agujeros de cobertura: un articulo publicado poco despues de una
+# corrida quedaria "viejo" (fuera de la ventana) para cuando corre la
+# siguiente, 6hs mas tarde, y nunca se lo tomaria. 6.5 = 6hs de intervalo +
+# 30min de margen (corridas que se atrasan, arranques lentos, etc).
+HORAS_MAX = 6.5  # Solo noticias de las ultimas N horas
+
+# Categorias que puede tocar el panel de control (ver panel_categorias.html).
+# El orden acá no importa, solo define qué claves son válidas en el documento
+# de configuracion.
+CATEGORIAS_DISPONIBLES = ["policiales", "judiciales", "deportes", "espectaculos", "politica", "interior"]
 
 # ── Concurrencia y rate-limiting ──────────────────────────────────────────────
 MAX_WORKERS_FUENTES   = 6    # fuentes cuyo listado se trae en paralelo
@@ -417,42 +428,134 @@ def generar_slug(titulo):
     ts = datetime.now().strftime('%Y%m%d%H%M')
     return f"{s}-{ts}"
 
+MESES_ES = {
+    'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+    'julio': 7, 'agosto': 8, 'septiembre': 9, 'setiembre': 9, 'octubre': 10,
+    'noviembre': 11, 'diciembre': 12
+}
+
+def _parsear_fecha_relativa(txt, ahora=None):
+    """Reconoce formatos de fecha relativos/textuales muy comunes en sitios
+    de noticias chicos (sobre todo WordPress) que la version anterior no
+    entendia: 'hace X minutos/horas', 'hoy HH:MM', 'ayer HH:MM', y fechas
+    largas en español ('15 de agosto de 2026') sin depender del locale del
+    sistema operativo (que en este servidor no esta en español, por lo que
+    %B nunca reconocia el nombre del mes)."""
+    if ahora is None:
+        ahora = datetime.now(timezone.utc)
+    t = txt.strip().lower()
+
+    m = re.search(r'hace\s+(\d+)\s*(minuto|minutos|min|hora|horas|hs|h)\b', t)
+    if m:
+        cantidad = int(m.group(1))
+        unidad = m.group(2)
+        if unidad.startswith('min'):
+            return ahora - timedelta(minutes=cantidad)
+        return ahora - timedelta(hours=cantidad)
+
+    if re.search(r'hace\s+(instantes|unos segundos|un momento)', t) or t == 'ahora':
+        return ahora
+
+    m = re.search(r'\bhoy\b\D*(\d{1,2}):(\d{2})', t)
+    if m:
+        return ahora.replace(hour=int(m.group(1)), minute=int(m.group(2)), second=0, microsecond=0)
+
+    m = re.search(r'\bayer\b\D*(\d{1,2}):(\d{2})', t)
+    if m:
+        base = ahora - timedelta(days=1)
+        return base.replace(hour=int(m.group(1)), minute=int(m.group(2)), second=0, microsecond=0)
+
+    m = re.match(r'(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})', t)
+    if m and m.group(2) in MESES_ES:
+        try:
+            return datetime(int(m.group(3)), MESES_ES[m.group(2)], int(m.group(1)), tzinfo=timezone.utc)
+        except Exception:
+            return None
+
+    return None
+
 def parsear_fecha_articulo(soup, fuente):
-    """Intenta extraer la fecha de publicacion del articulo."""
+    """Intenta extraer la fecha de publicacion del articulo, en orden de
+    confiabilidad decreciente:
+    1) Metadatos estandar (article:published_time, og:*, JSON-LD
+       datePublished): no dependen del selector CSS particular de cada
+       sitio y los trae la gran mayoria de los CMS de noticias, incluidos
+       varios de los sitios chicos que antes nunca daban una fecha valida.
+    2) El/los selector(es) configurados por fuente en FUENTES, primero
+       buscando un atributo datetime/ISO, y si no hay, parseando el texto
+       visible (formatos absolutos Y relativos: 'hace 2 horas', 'hoy 14:30',
+       etc. via _parsear_fecha_relativa)."""
+    for prop in ('article:published_time', 'og:article:published_time', 'og:updated_time'):
+        meta = soup.find('meta', property=prop) or soup.find('meta', attrs={'name': prop})
+        if meta and meta.get('content'):
+            try:
+                return datetime.fromisoformat(meta['content'].replace('Z', '+00:00'))
+            except Exception:
+                pass
+
+    meta_date = soup.find('meta', attrs={'name': 'date'}) or soup.find('meta', attrs={'name': 'publish-date'})
+    if meta_date and meta_date.get('content'):
+        try:
+            return datetime.fromisoformat(meta_date['content'].replace('Z', '+00:00'))
+        except Exception:
+            pass
+
+    ld_script = soup.find('script', attrs={'type': 'application/ld+json'})
+    if ld_script and ld_script.string:
+        try:
+            data = json.loads(ld_script.string)
+            if isinstance(data, list):
+                data = data[0] if data else {}
+            fecha_ld = data.get('datePublished') or data.get('dateCreated')
+            if fecha_ld:
+                return datetime.fromisoformat(fecha_ld.replace('Z', '+00:00'))
+        except Exception:
+            pass
+
     for sel in fuente['selector_fecha'].split(','):
         el = soup.select_one(sel.strip())
-        if el:
-            # Buscar atributo datetime primero
-            dt_attr = el.get('datetime') or el.get('data-datetime') or el.get('content')
-            if dt_attr:
-                try:
-                    # Parsear ISO 8601
-                    dt_attr = dt_attr.replace('Z', '+00:00')
-                    return datetime.fromisoformat(dt_attr)
-                except Exception:
-                    pass
-            # Intentar parsear el texto
-            txt = el.get_text(strip=True)
-            for fmt in ['%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M:%S', '%d de %B de %Y']:
-                try:
-                    return datetime.strptime(txt[:16], fmt).replace(tzinfo=timezone.utc)
-                except Exception:
-                    pass
+        if not el:
+            continue
+        dt_attr = el.get('datetime') or el.get('data-datetime') or el.get('content')
+        if dt_attr:
+            try:
+                return datetime.fromisoformat(dt_attr.replace('Z', '+00:00'))
+            except Exception:
+                pass
+        txt = el.get_text(strip=True)
+        fecha_rel = _parsear_fecha_relativa(txt)
+        if fecha_rel:
+            return fecha_rel
+        for fmt in ['%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M:%S']:
+            try:
+                return datetime.strptime(txt[:19], fmt).replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
     return None
 
 def es_reciente(soup, fuente, horas_max=2):
-    """Devuelve True si el articulo fue publicado en las ultimas horas_max horas."""
+    """Devuelve True si el articulo fue publicado en las ultimas horas_max
+    horas. IMPORTANTE (cambio de comportamiento respecto a la version
+    anterior): si no se puede determinar la fecha, ahora se DESCARTA el
+    articulo en vez de aceptarlo. Antes, cuando fallaba el parseo de fecha
+    (algo frecuente en varios sitios chicos), el articulo se publicaba
+    igual sin importar su antiguedad real - esa era la causa principal de
+    que aparecieran notas viejas en los drafts. Con los fallbacks nuevos de
+    parsear_fecha_articulo esto deberia ser raro; se loguea en WARNING con
+    el nombre de la fuente para poder monitorearlo durante la prueba de
+    esta rama antes de pasarla a main."""
     fecha = parsear_fecha_articulo(soup, fuente)
     if fecha is None:
-        # Si no se puede determinar la fecha, aceptar el articulo
-        logger.debug("No se pudo determinar fecha, aceptando articulo")
-        return True
+        logger.warning(f"[{fuente['nombre']}] No se pudo determinar fecha del articulo, se descarta por precaucion")
+        return False
     ahora = datetime.now(timezone.utc)
     if fecha.tzinfo is None:
         fecha = fecha.replace(tzinfo=timezone.utc)
     antiguedad = ahora - fecha
     logger.debug(f"Fecha articulo: {fecha}, antiguedad: {antiguedad}")
-    return antiguedad <= timedelta(hours=horas_max)
+    # antiguedad negativa (fecha "futura", p.ej. por desfasaje de reloj o
+    # error de parseo) tambien se descarta en vez de aceptarse.
+    return timedelta(0) <= antiguedad <= timedelta(hours=horas_max)
 
 def extraer_imagen_principal(soup, fuente):
     """Extrae la imagen principal: og:image > twitter:image > primera img del cuerpo."""
@@ -756,13 +859,14 @@ def generar_tags(titulo, copete, categoria, fuente_nombre):
     return result
 
 def conectar_mongo():
-    """Conecta a MongoDB y retorna (col_articles, col_files, col_dedup) o (None, None, None)."""
+    """Conecta a MongoDB y retorna (col_articles, col_files, col_dedup, col_config)
+    o (None, None, None, None)."""
     if not PYMONGO_OK:
         logger.error("pymongo no instalado. Ejecutar: pip install pymongo")
-        return None, None, None
+        return None, None, None, None
     if not MONGO_URI:
         logger.error("Variable de entorno MONGO_URI no configurada. Abortando.")
-        return None, None, None
+        return None, None, None, None
     try:
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
         client.server_info()
@@ -770,12 +874,35 @@ def conectar_mongo():
         col_art = db[MONGO_COLLECTION]
         col_files = db[MONGO_FILES_COL]
         col_dedup = db[MONGO_DEDUP_COL]
+        col_config = db[MONGO_CONFIG_COL]
         preparar_coleccion_dedup(col_dedup)
         logger.info("Conexion MongoDB exitosa")
-        return col_art, col_files, col_dedup
+        return col_art, col_files, col_dedup, col_config
     except Exception as e:
         logger.error(f"Error conectando MongoDB: {e}")
-        return None, None, None
+        return None, None, None, None
+
+def cargar_categorias_activas(col_config):
+    """Lee que categorias estan habilitadas desde la coleccion de config
+    (agregador_config, documento fijo _id='config'), la que edita el panel
+    panel_categorias.html. Si el documento no existe todavia (primera vez,
+    o Mongo no disponible), se asume que TODAS las categorias estan activas
+    para no dejar de publicar nada por falta de configuracion."""
+    if col_config is None:
+        return set(CATEGORIAS_DISPONIBLES)
+    try:
+        doc = col_config.find_one({"_id": "config"})
+        if not doc:
+            logger.info("Sin config de categorias en Mongo todavia: se usan todas")
+            return set(CATEGORIAS_DISPONIBLES)
+        activas = {c for c in CATEGORIAS_DISPONIBLES if doc.get(c, True)}
+        inactivas = set(CATEGORIAS_DISPONIBLES) - activas
+        if inactivas:
+            logger.info(f"Categorias desactivadas por panel: {sorted(inactivas)}")
+        return activas
+    except Exception as e:
+        logger.warning(f"No se pudo leer config de categorias, se usan todas: {e}")
+        return set(CATEGORIAS_DISPONIBLES)
 
 def publicar_articulo(nota_reescrita, categoria_id, col_art, col_files, url_original, imagen_url, credito_imagen, es_sde=False, paso_por_ia=True):
     """Inserta un articulo en MongoDB como DRAFT con imagen y slug."""
@@ -975,10 +1102,17 @@ def main():
     logger.info("=" * 60)
 
     # Conectar a MongoDB
-    col_art, col_files, col_dedup = conectar_mongo()
+    col_art, col_files, col_dedup, col_config = conectar_mongo()
     if col_art is None:
         logger.error("No se pudo conectar a MongoDB. Abortando.")
         return
+
+    # Categorias activas segun el panel de control (panel_categorias.html).
+    # Si una fuente queda fuera, ni siquiera se trae su listado de articulos.
+    categorias_activas = cargar_categorias_activas(col_config)
+    fuentes_activas = [f for f in FUENTES if f['categoria'] in categorias_activas]
+    logger.info(f"Categorias activas: {sorted(categorias_activas)}")
+    logger.info(f"Fuentes a procesar esta corrida: {len(fuentes_activas)} de {len(FUENTES)}")
 
     # Pool de deduplicacion: URLs normalizadas + titulos originales procesados
     # en las ultimas VENTANA_DEDUP_HORAS, sin importar en que corrida de cron
@@ -990,13 +1124,13 @@ def main():
 
     total_publicados = 0
 
-    # Traer el listado de articulos de TODAS las fuentes en paralelo (I/O-bound
-    # y de solo lectura, no hay estado compartido que proteger aca).
-    urls_por_fuente = obtener_urls_por_fuente(FUENTES)
+    # Traer el listado de articulos de las fuentes activas en paralelo
+    # (I/O-bound y de solo lectura, no hay estado compartido que proteger aca).
+    urls_por_fuente = obtener_urls_por_fuente(fuentes_activas)
 
-    # Procesar cada fuente. Un error inesperado en una fuente no debe cortar
-    # el resto de la corrida.
-    for fuente in FUENTES:
+    # Procesar cada fuente activa. Un error inesperado en una fuente no debe
+    # cortar el resto de la corrida.
+    for fuente in fuentes_activas:
         try:
             logger.info(f"\nProcesando fuente: {fuente['nombre']}")
 
