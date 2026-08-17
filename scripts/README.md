@@ -10,7 +10,7 @@ curl -s https://raw.githubusercontent.com/diarioinfoia-lab/diario-info_api/maste
 
 ### 2. Instalar dependencias
 ```bash
-pip3 install requests beautifulsoup4 pymongo --user
+pip3 install requests beautifulsoup4 pymongo python-dateutil --user
 ```
 
 ### 3. Configurar variables de entorno
