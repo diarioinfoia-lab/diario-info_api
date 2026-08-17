@@ -6,6 +6,12 @@ Filtra noticias de las ultimas 2 horas. v10: 20 fuentes (El Liberal 4, Panorama 
 Optimizaciones v10: sesion HTTP con reintentos, scraping en paralelo (por fuente
 y por articulo), rate-limit por dominio, credenciales de Mongo por variable de
 entorno, y manejo de errores aislado por fuente.
+v11: deteccion de fecha del articulo mas robusta (JSON-LD + meta tags + parseo
+flexible con dateutil, ademas del selector CSS por fuente) y, para el caso en
+que ninguna de esas fuentes permite determinar la fecha, un fallback basado en
+un historial largo de URLs (HISTORIAL_URL_DIAS) en vez de aceptar la nota
+siempre por default (eso dejaba pasar notas viejas "pescadas" de widgets de
+mas leidas/relacionadas en sitios sin fecha parseable).
 """
 
 import requests
@@ -22,6 +28,7 @@ from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from dateutil import parser as dateutil_parser
 
 # ── pymongo ──────────────────────────────────────────────────────────────────
 try:
@@ -353,7 +360,16 @@ CATEGORIAS = {
 # la deduplicacion funcione tambien ENTRE corridas de cron (ej: una fuente
 # publica una nota y dos horas despues otra fuente cubre el mismo hecho).
 MONGO_DEDUP_COL = "agregador_dedup"
-VENTANA_DEDUP_HORAS = 8  # ventana de comparacion (> intervalo del cron de 2h)
+VENTANA_DEDUP_HORAS = 8  # ventana de comparacion de titulos (> intervalo del cron, hoy 6h)
+
+# Historial largo de URLs (misma coleccion agregador_dedup): se usa SOLO como
+# señal de respaldo cuando un articulo no tiene fecha de publicacion
+# determinable (ver es_reciente). Si la URL nunca aparecio en los ultimos
+# HISTORIAL_URL_DIAS dias, se trata como probablemente nueva; si ya aparecio
+# (aunque haya sido hace semanas, tipico de un link reflotado desde un widget
+# de "mas leidas"), se descarta en vez de aceptarla a ciegas. El indice TTL de
+# la coleccion se configura con esta ventana (ver preparar_coleccion_dedup).
+HISTORIAL_URL_DIAS = 15
 
 # ── Sesion HTTP compartida (con reintentos) y rate-limit por dominio ─────────
 _DOMAIN_LOCK = threading.Lock()
@@ -417,42 +433,125 @@ def generar_slug(titulo):
     ts = datetime.now().strftime('%Y%m%d%H%M')
     return f"{s}-{ts}"
 
+def _parsear_texto_fecha(texto):
+    """Convierte un string a datetime timezone-aware (UTC si no trae zona
+    horaria explicita). Usa dateutil en modo fuzzy en vez de una lista fija
+    de formatos (strptime), para tolerar variaciones de formato entre sitios
+    que antes hacian fallar el parseo silenciosamente. dayfirst=True porque
+    las fuentes son todas de Argentina (dd/mm/yyyy)."""
+    if not texto:
+        return None
+    try:
+        dt = dateutil_parser.parse(texto, fuzzy=True, dayfirst=True)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+def _fecha_desde_json_ld(soup):
+    """Busca datePublished/dateModified en bloques JSON-LD (schema.org
+    NewsArticle/Article), que muchos sitios incluyen aunque el HTML visible
+    no tenga un elemento de fecha reconocible por selector_fecha."""
+    for script_tag in soup.find_all('script', type='application/ld+json'):
+        try:
+            data = json.loads(script_tag.string or '')
+        except Exception:
+            continue
+        items = data if isinstance(data, list) else [data]
+        # Algunos CMS anidan los items reales dentro de "@graph"
+        expandido = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            expandido.append(item)
+            grafo = item.get('@graph')
+            if isinstance(grafo, list):
+                expandido.extend(g for g in grafo if isinstance(g, dict))
+        for item in expandido:
+            for campo in ('datePublished', 'dateModified', 'uploadDate'):
+                dt = _parsear_texto_fecha(item.get(campo))
+                if dt:
+                    return dt
+    return None
+
+def _fecha_desde_meta_tags(soup):
+    """Busca la fecha en meta tags estandar que la mayoria de los CMS de
+    noticias exponen independientemente del maquetado visible."""
+    candidatos = [
+        ('meta', {'property': 'article:published_time'}),
+        ('meta', {'property': 'article:modified_time'}),
+        ('meta', {'property': 'og:updated_time'}),
+        ('meta', {'name': 'article:published_time'}),
+        ('meta', {'itemprop': 'datePublished'}),
+        ('meta', {'itemprop': 'dateModified'}),
+        ('time', {'itemprop': 'datePublished'}),
+    ]
+    for tag, attrs in candidatos:
+        el = soup.find(tag, attrs=attrs)
+        if el:
+            valor = el.get('content') or el.get('datetime') or el.get_text(strip=True)
+            dt = _parsear_texto_fecha(valor)
+            if dt:
+                return dt
+    return None
+
 def parsear_fecha_articulo(soup, fuente):
-    """Intenta extraer la fecha de publicacion del articulo."""
+    """Intenta extraer la fecha de publicacion del articulo, probando varias
+    fuentes en orden de confiabilidad: 1) JSON-LD schema.org, 2) meta tags
+    estandar, 3) el selector_fecha especifico de la fuente. Devuelve None
+    solo si ninguna de las tres dio un resultado parseable."""
+    dt = _fecha_desde_json_ld(soup)
+    if dt:
+        return dt
+
+    dt = _fecha_desde_meta_tags(soup)
+    if dt:
+        return dt
+
     for sel in fuente['selector_fecha'].split(','):
         el = soup.select_one(sel.strip())
         if el:
-            # Buscar atributo datetime primero
             dt_attr = el.get('datetime') or el.get('data-datetime') or el.get('content')
             if dt_attr:
-                try:
-                    # Parsear ISO 8601
-                    dt_attr = dt_attr.replace('Z', '+00:00')
-                    return datetime.fromisoformat(dt_attr)
-                except Exception:
-                    pass
-            # Intentar parsear el texto
-            txt = el.get_text(strip=True)
-            for fmt in ['%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M:%S', '%d de %B de %Y']:
-                try:
-                    return datetime.strptime(txt[:16], fmt).replace(tzinfo=timezone.utc)
-                except Exception:
-                    pass
+                dt = _parsear_texto_fecha(dt_attr)
+                if dt:
+                    return dt
+            dt = _parsear_texto_fecha(el.get_text(strip=True))
+            if dt:
+                return dt
     return None
 
-def es_reciente(soup, fuente, horas_max=2):
-    """Devuelve True si el articulo fue publicado en las ultimas horas_max horas."""
+def es_reciente(soup, fuente, url, urls_historial, horas_max=2):
+    """Decide si un articulo debe considerarse "reciente" (publicable).
+
+    - Si se pudo determinar la fecha real: se acepta solo si su antiguedad
+      es <= horas_max, igual que antes.
+    - Si NO se pudo determinar la fecha (selector roto, formato no
+      reconocido, sitio sin metadata de fecha): en vez de aceptar siempre
+      por default, se usa el historial largo de URLs (HISTORIAL_URL_DIAS)
+      como señal de respaldo. Si la URL nunca aparecio en ese historial se
+      acepta (probablemente nueva); si ya aparecio se descarta (probablemente
+      un link viejo reflotado, ej. desde un widget de "mas leidas").
+
+    Devuelve (aceptar: bool, motivo: str) para poder loguear el criterio
+    usado en cada caso.
+    """
     fecha = parsear_fecha_articulo(soup, fuente)
-    if fecha is None:
-        # Si no se puede determinar la fecha, aceptar el articulo
-        logger.debug("No se pudo determinar fecha, aceptando articulo")
-        return True
-    ahora = datetime.now(timezone.utc)
-    if fecha.tzinfo is None:
-        fecha = fecha.replace(tzinfo=timezone.utc)
-    antiguedad = ahora - fecha
-    logger.debug(f"Fecha articulo: {fecha}, antiguedad: {antiguedad}")
-    return antiguedad <= timedelta(hours=horas_max)
+    if fecha is not None:
+        ahora = datetime.now(timezone.utc)
+        if fecha.tzinfo is None:
+            fecha = fecha.replace(tzinfo=timezone.utc)
+        antiguedad = ahora - fecha
+        logger.debug(f"Fecha articulo: {fecha}, antiguedad: {antiguedad}")
+        if antiguedad <= timedelta(hours=horas_max):
+            return True, "fecha_reciente"
+        return False, f"fecha_vieja ({antiguedad})"
+
+    # Fecha no determinable: fallback por historial largo de URLs.
+    if normalizar_url(url) in urls_historial:
+        return False, f"sin_fecha_ya_vista_en_historial_{HISTORIAL_URL_DIAS}d"
+    return True, f"sin_fecha_nueva_en_historial_{HISTORIAL_URL_DIAS}d"
 
 def extraer_imagen_principal(soup, fuente):
     """Extrae la imagen principal: og:image > twitter:image > primera img del cuerpo."""
@@ -519,15 +618,28 @@ def normalizar_url(url):
         return url
 
 def preparar_coleccion_dedup(col_dedup):
-    """Asegura el indice TTL (idempotente: si ya existe, no hace nada)."""
+    """Asegura el indice TTL sobre createdAt, con el TTL fijado por
+    HISTORIAL_URL_DIAS (necesita ser mas largo que VENTANA_DEDUP_HORAS porque
+    la misma coleccion ahora tambien sirve como historial largo de URLs para
+    el fallback de fecha-no-determinable). Si el indice ya existia con otro
+    TTL (por ejemplo, de una version anterior del script que usaba 24h), lo
+    recrea con el valor nuevo en vez de fallar."""
+    ttl_segundos = HISTORIAL_URL_DIAS * 24 * 3600
     try:
-        col_dedup.create_index("createdAt", expireAfterSeconds=VENTANA_DEDUP_HORAS * 3 * 3600)
-    except Exception as e:
-        logger.warning(f"No se pudo asegurar indice TTL de dedup: {e}")
+        col_dedup.create_index("createdAt", expireAfterSeconds=ttl_segundos)
+    except Exception:
+        try:
+            col_dedup.drop_index("createdAt_1")
+            col_dedup.create_index("createdAt", expireAfterSeconds=ttl_segundos)
+            logger.info(f"Indice TTL de dedup recreado ({HISTORIAL_URL_DIAS} dias)")
+        except Exception as e2:
+            logger.warning(f"No se pudo asegurar/actualizar indice TTL de dedup: {e2}")
 
 def cargar_pool_dedup(col_dedup):
     """Trae URLs normalizadas y titulos originales procesados en la ventana
-    reciente (incluye corridas de cron anteriores, no solo la actual)."""
+    reciente (incluye corridas de cron anteriores, no solo la actual). Se usa
+    para la deduplicacion de notas (misma URL / mismo hecho contado por otra
+    fuente), no para decidir si algo es "nuevo" en terminos de fecha."""
     desde = datetime.now(timezone.utc) - timedelta(hours=VENTANA_DEDUP_HORAS)
     try:
         docs = col_dedup.find({"createdAt": {"$gte": desde}}, {"url": 1, "titulo": 1})
@@ -542,6 +654,22 @@ def cargar_pool_dedup(col_dedup):
     except Exception as e:
         logger.error(f"Error cargando pool de dedup: {e}")
         return set(), []
+
+def cargar_urls_historial(col_dedup):
+    """Trae TODAS las URLs normalizadas vistas en los ultimos HISTORIAL_URL_DIAS
+    dias (no solo el titulo, y con una ventana mucho mas larga que el pool de
+    dedup de arriba). Se usa exclusivamente como señal de respaldo en
+    es_reciente() cuando un articulo no tiene fecha determinable: si la URL
+    nunca aparecio aca, se trata como probablemente nueva."""
+    desde = datetime.now(timezone.utc) - timedelta(days=HISTORIAL_URL_DIAS)
+    try:
+        docs = col_dedup.find({"createdAt": {"$gte": desde}}, {"url": 1})
+        urls = {d["url"] for d in docs if d.get("url")}
+        logger.info(f"Historial largo de URLs: {len(urls)} (ultimos {HISTORIAL_URL_DIAS} dias)")
+        return urls
+    except Exception as e:
+        logger.error(f"Error cargando historial largo de URLs: {e}")
+        return set()
 
 def registrar_dedup(col_dedup, url, titulo_original):
     """Registra una URL/titulo ya procesados para que corridas futuras
@@ -593,7 +721,7 @@ def obtener_urls_por_fuente(fuentes):
                 resultados[nombre] = []
     return resultados
 
-def scrape_articulo(url, fuente):
+def scrape_articulo(url, fuente, urls_historial):
     """Scrape un articulo y retorna titulo, cuerpo, imagen y url_original."""
     try:
         resp = http_get(url)
@@ -601,9 +729,12 @@ def scrape_articulo(url, fuente):
         soup = BeautifulSoup(resp.text, 'html.parser')
 
         # ── Filtro de fecha ──────────────────────────────────────────────────
-        if not es_reciente(soup, fuente, HORAS_MAX):
-            logger.info(f"Articulo demasiado antiguo (> {HORAS_MAX}h), descartado: {url}")
+        aceptar, motivo = es_reciente(soup, fuente, url, urls_historial, HORAS_MAX)
+        if not aceptar:
+            logger.info(f"Articulo descartado ({motivo}): {url}")
             return None
+        if motivo.startswith("sin_fecha"):
+            logger.warning(f"Sin fecha determinable, se acepta por no estar en el historial de {HISTORIAL_URL_DIAS}d: {url}")
 
         # ── Titulo ───────────────────────────────────────────────────────────
         titulo = None
@@ -899,11 +1030,13 @@ def titulos_similares(t1, t2, umbral=0.65):
     similitud = len(interseccion) / max(len(w1), len(w2))
     return similitud >= umbral
 
-def procesar_articulo(url, fuente, urls_vistas, titulos_vistos, dedup_lock, col_art, col_files, col_dedup):
+def procesar_articulo(url, fuente, urls_vistas, titulos_vistos, dedup_lock, col_art, col_files, col_dedup, urls_historial):
     """Procesa (scrape + reescritura + publicacion) un unico articulo.
     Pensado para correr dentro de un thread: las secciones que tocan estado
     compartido de dedup (urls_vistas / titulos_vistos) estan protegidas por
     dedup_lock para evitar condiciones de carrera entre threads.
+    urls_historial es de solo lectura (historial largo de URLs para el
+    fallback de fecha-no-determinable), no necesita lock.
     Devuelve True si se publico, False si se proceso pero no se publico,
     y None si se descarto antes de scrapear (URL ya vista)."""
     url_norm = normalizar_url(url)
@@ -918,7 +1051,7 @@ def procesar_articulo(url, fuente, urls_vistas, titulos_vistos, dedup_lock, col_
         urls_vistas.add(url_norm)
 
     # Scrape del articulo (incluye filtro de fecha)
-    articulo = scrape_articulo(url, fuente)
+    articulo = scrape_articulo(url, fuente, urls_historial)
     if not articulo:
         registrar_dedup(col_dedup, url, "")
         return None
@@ -988,6 +1121,12 @@ def main():
     urls_vistas, titulos_vistos = cargar_pool_dedup(col_dedup)
     dedup_lock = threading.Lock()
 
+    # Historial largo de URLs (independiente del pool de dedup de arriba):
+    # solo se consulta cuando un articulo no tiene fecha determinable, para
+    # decidir si es probablemente nueva o un link viejo reflotado. Se carga
+    # una sola vez al arrancar la corrida (solo lectura, no necesita lock).
+    urls_historial = cargar_urls_historial(col_dedup)
+
     total_publicados = 0
 
     # Traer el listado de articulos de TODAS las fuentes en paralelo (I/O-bound
@@ -1013,7 +1152,7 @@ def main():
                 futuros = [
                     executor.submit(
                         procesar_articulo, url, fuente, urls_vistas, titulos_vistos,
-                        dedup_lock, col_art, col_files, col_dedup
+                        dedup_lock, col_art, col_files, col_dedup, urls_historial
                     )
                     for url in urls
                 ]
